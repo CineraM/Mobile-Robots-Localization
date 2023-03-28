@@ -112,12 +112,26 @@ def imuCleaner(imu_reading):
 def imuRad():
     return math.radians(imuCleaner(imu.getRollPitchYaw()[2]))
 
+def generateTiles():
+    y = 20
+    tiles = []
+    for i in range(4):
+        x = -20
+        for j in range(4):
+            tiles.append([[x, y], [x+10, y], [x, y-10], [x+10, y-10]])
+            x+=10
+        y-=10
+    return tiles
 
 # X is undiscovered
 grid = [['x', 'x', 'x', 'x'],
        ['x', 'x', 'x', 'x'], 
        ['x', 'x', 'x', 'x'], 
        ['x', 'x', 'x', 'x']]
+
+tiles_coordinates = generateTiles()
+for t in tiles_coordinates:
+    print(t)
 
 class RobotPose:
   def __init__(self, x, y, tile, theta):
@@ -127,11 +141,10 @@ class RobotPose:
     self.theta = theta 
 
 def printRobotPose(obj):
-    print(f'x: {obj.x}, y: {obj.x}, tile: {obj.tile}, theta: {obj.theta}')
+    print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
 
-ROBOT_POSE = RobotPose(15, -15, 16, imuCleaner(imu.getRollPitchYaw()[2]))
+ROBOT_POSE = RobotPose(15.0, -15.0, 16, imuCleaner(imu.getRollPitchYaw()[2]))
 prev_l, prev_r = getPositionSensors()
-
 
 def distAfterTask(vl, vr):
     vl = round(vl, 8)
@@ -142,6 +155,20 @@ def distAfterTask(vl, vr):
     if vl == -vr or math.isnan(vl):
         return 0
 
+# bottom left, top right, robot
+def updateTile(pose):
+    global tiles_coordinates
+
+    for i in range(len(tiles_coordinates)):
+        bl = tiles_coordinates[i][2]
+        br = tiles_coordinates[i][3]
+        tr = tiles_coordinates[i][1]
+        tl = tiles_coordinates[i][0]
+
+        # if pose.x > tr[0] and: 
+    return -1
+    
+
 def updatePose(obj):
     global prev_l, prev_r
     cur_l, cur_r = getPositionSensors()
@@ -151,9 +178,12 @@ def updatePose(obj):
     dist = distAfterTask(vl*w_r, vr*w_r)
     obj.theta = imu_reading
 
-    # if isRotating: return # return if rotation, no need to update x or y
-    print("dist: "+str(dist))
-    if imu_reading < 92 and imu_reading > 88:
+    prev_l = cur_l
+    prev_r = cur_r
+
+    if dist == None:
+        pass
+    elif imu_reading < 92 and imu_reading > 88:
         obj.y += dist
     elif imu_reading < 182 and imu_reading > 178:
         obj.x -= dist
@@ -163,12 +193,14 @@ def updatePose(obj):
         obj.x += dist
     elif imu_reading < 2 and imu_reading >= 0:
         obj.x += dist
-    
-    prev_l = cur_l
-    prev_r = cur_r
+
+    tile = updateTile(obj)
+    print(tile)
+    if tile != -1: obj.tile = tile
 
 # 5.024 = max speed in in per second
-def straightMotionD(d, v = 5.024):
+def straightMotionD(d, v = 4):
+    global ROBOT_POSE
     time = d/v  # 5.024 = v*r ==> max linear speed
     s_time = robot.getTime()
     while robot.step(timestep) != -1:
@@ -183,6 +215,7 @@ def straightMotionD(d, v = 5.024):
 
 # assume angle is in radians
 def rotationInPlace(direction, angle, v):
+    global ROBOT_POSE
     s = angle*dmid
     time = s/v
     s_time = robot.getTime()
@@ -218,7 +251,6 @@ def task1Motion():
 flag = True
 
 while robot.step(timestep) != -1:
-    print(imuCleaner(imu.getRollPitchYaw()[2]))
     # print_robot_pose(robot_pose)
     # rotationInPlace('left', pi/2, 0.8)
     if flag:
@@ -226,6 +258,8 @@ while robot.step(timestep) != -1:
         flag = False
     # else:
     #     setSpeedIPS(-2, 2)
+
+
 
 
 
