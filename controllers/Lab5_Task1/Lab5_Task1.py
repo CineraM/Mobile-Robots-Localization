@@ -92,47 +92,6 @@ w_r = w_dia/2
 pi = math.pi
 half_of_robot = 0.037*39.3701 
 
-def imu_cleaner(imu_reading = imu.getRollPitchYaw()[2]):
-    rad_out = imu_reading
-    if rad_out < 0:
-        rad_out = rad_out + 2*math.pi
-    return math.degrees(rad_out)
-
-def imu_rad():
-    return math.radians(imu_cleaner(imu.getRollPitchYaw()[2]))
-
-
-# stuff for task 2
-class Landmark:
-  def __init__(self, color, x, y):
-    self.color = color
-    self.x = x 
-    self.y = y 
-
-lm1 = Landmark('yellow', -20, 20)
-lm2 = Landmark('red', 20, 20)
-lm3 = Landmark('green', -20, -20)
-lm4 = Landmark('yellow', 20, -20)
-
-# X is undiscovered
-map = [['x', 'x', 'x', 'x'],
-       ['x', 'x', 'x', 'x'], 
-       ['x', 'x', 'x', 'x'], 
-       ['x', 'x', 'x', 'x']]
-
-class RobotPose:
-  def __init__(self, x, y, grid, theta):
-    self.x = x
-    self.y = y
-    self.grid = grid
-    self.theta = theta 
-
-def print_robot_pose(obj):
-    print(f'x: {obj.x}, y: {obj.x}, tile: {obj.grid}, theta: {obj.theta}')
-
-robot_pose = RobotPose(15, -15, 16, imu_cleaner(imu.getRollPitchYaw()[2]))
-
-
 # set speed to both motors, input in Inches
 def setSpeedIPS(vl, vr):
     vl /= w_r
@@ -140,14 +99,73 @@ def setSpeedIPS(vl, vr):
     leftMotor.setVelocity(vl)
     rightMotor.setVelocity(vr)
 
-def vSaturation(v, max):
-    if math.isinf(v):
-        return max
-    if v > max:
-        return max
-    if v < -max:
-        return -max
-    return v
+# returns the decorders values
+def getPositionSensors():
+    return leftposition_sensor.getValue(), rightposition_sensor.getValue()
+
+def imuCleaner(imu_reading):
+    rad_out = imu_reading
+    if rad_out < 0:
+        rad_out = rad_out + 2*math.pi
+    return math.degrees(rad_out)
+
+def imuRad():
+    return math.radians(imuCleaner(imu.getRollPitchYaw()[2]))
+
+
+# X is undiscovered
+grid = [['x', 'x', 'x', 'x'],
+       ['x', 'x', 'x', 'x'], 
+       ['x', 'x', 'x', 'x'], 
+       ['x', 'x', 'x', 'x']]
+
+class RobotPose:
+  def __init__(self, x, y, tile, theta):
+    self.x = x
+    self.y = y
+    self.tile = tile
+    self.theta = theta 
+
+def printRobotPose(obj):
+    print(f'x: {obj.x}, y: {obj.x}, tile: {obj.tile}, theta: {obj.theta}')
+
+ROBOT_POSE = RobotPose(15, -15, 16, imuCleaner(imu.getRollPitchYaw()[2]))
+prev_l, prev_r = getPositionSensors()
+
+
+def distAfterTask(vl, vr):
+    vl = round(vl, 8)
+    vr = round(vr, 8)
+    
+    if vl == vr:
+        return 0.032*vl
+    if vl == -vr or math.isnan(vl):
+        return 0
+
+def updatePose(obj):
+    global prev_l, prev_r
+    cur_l, cur_r = getPositionSensors()
+    vl = (cur_l-prev_l)/0.032   # 32 ms 
+    vr = (cur_r-prev_r)/0.032
+    imu_reading = imuCleaner(imu.getRollPitchYaw()[2])
+    dist = distAfterTask(vl*w_r, vr*w_r)
+    obj.theta = imu_reading
+
+    # if isRotating: return # return if rotation, no need to update x or y
+    print("dist: "+str(dist))
+    if imu_reading < 92 and imu_reading > 88:
+        obj.y += dist
+    elif imu_reading < 182 and imu_reading > 178:
+        obj.x -= dist
+    elif imu_reading < 272 and imu_reading > 268:
+        obj.y -= dist
+    elif imu_reading <= 360 and imu_reading > 358:
+        obj.x += dist
+    elif imu_reading < 2 and imu_reading >= 0:
+        obj.x += dist
+    
+    prev_l = cur_l
+    prev_r = cur_r
 
 # 5.024 = max speed in in per second
 def straightMotionD(d, v = 5.024):
@@ -156,8 +174,12 @@ def straightMotionD(d, v = 5.024):
     while robot.step(timestep) != -1:
         if robot.getTime()-s_time > time:
             setSpeedIPS(0,0)
+            updatePose(ROBOT_POSE)
+            printRobotPose(ROBOT_POSE)
             break
         setSpeedIPS(v, v)
+        updatePose(ROBOT_POSE)
+        printRobotPose(ROBOT_POSE)
 
 # assume angle is in radians
 def rotationInPlace(direction, angle, v):
@@ -168,49 +190,42 @@ def rotationInPlace(direction, angle, v):
         if robot.getTime()-s_time > time:
             leftMotor.setVelocity(0)
             rightMotor.setVelocity(0)
+            updatePose(ROBOT_POSE)
+            printRobotPose(ROBOT_POSE)
             break 
         if direction == "left":
             setSpeedIPS(-v, v)
         else:
             setSpeedIPS(v, -v)
+        updatePose(ROBOT_POSE)
+        printRobotPose(ROBOT_POSE)
 
+def task1Motion():
+    straightMotionD(30)
+    rotationInPlace('left', pi/2, 0.6)
+    straightMotionD(10)
+    rotationInPlace('left', pi/2, 0.6)
+    straightMotionD(30)
+    rotationInPlace('right', pi/2, 0.6)
+    straightMotionD(10)
+    rotationInPlace('right', pi/2, 0.6)
+    straightMotionD(30)
+    rotationInPlace('left', pi/2, 0.6)
+    straightMotionD(10)
+    rotationInPlace('left', pi/2, 0.6)
+    straightMotionD(30)
 
-# return the distance in inches from the front pid
-def frontDist():
-    return frontDistanceSensor.getValue()*39.3701
+flag = True
 
-def frontLidar():
-    image = lidar.getRangeImage()
-    return (image[0]*39.3701) - half_of_robot
-
-
-# Main loop:
-# perform simulation steps until Webots is stopping the controller
-
-
-count = 0
 while robot.step(timestep) != -1:
-    print(imu_cleaner())
+    print(imuCleaner(imu.getRollPitchYaw()[2]))
     # print_robot_pose(robot_pose)
     # rotationInPlace('left', pi/2, 0.8)
-    if count==0:
-        straightMotionD(30)
-        rotationInPlace('left', pi/2, 0.3)
-        count+=1
-    elif count==1:
-        straightMotionD(10)
-        rotationInPlace('left', pi/2, 0.3)
-        count+=1
-    elif count==2:
-        straightMotionD(30)
-        count+=1
-
-
-
-
-
-
-
+    if flag:
+        task1Motion()
+        flag = False
+    # else:
+    #     setSpeedIPS(-2, 2)
 
 
 
@@ -244,3 +259,36 @@ while robot.step(timestep) != -1:
     #     rightMotor.setVelocity(0)
     #     break
 # Enter here exit cleanup code.
+
+# stuff for task 2
+class Landmark:
+  def __init__(self, color, x, y):
+    self.color = color
+    self.x = x 
+    self.y = y 
+
+lm1 = Landmark('yellow', -20, 20)
+lm2 = Landmark('red', 20, 20)
+lm3 = Landmark('green', -20, -20)
+lm4 = Landmark('yellow', 20, -20)
+
+
+
+# not using this 
+# return the distance in inches from the front pid
+def frontDist():
+    return frontDistanceSensor.getValue()*39.3701
+
+def frontLidar():
+    image = lidar.getRangeImage()
+    return (image[0]*39.3701) - half_of_robot
+
+
+def vSaturation(v, max):
+    if math.isinf(v):
+        return max
+    if v > max:
+        return max
+    if v < -max:
+        return -max
+    return v
