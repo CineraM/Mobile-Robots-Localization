@@ -92,12 +92,23 @@ w_r = w_dia/2
 pi = math.pi
 half_of_robot = 0.037*39.3701 
 
+
+################# HELPER FUNCTIONS #################
 # set speed to both motors, input in Inches
 def setSpeedIPS(vl, vr):
     vl /= w_r
     vr /= w_r
     leftMotor.setVelocity(vl)
     rightMotor.setVelocity(vr)
+
+def distAfterTask(vl, vr):
+    vl = round(vl, 8)
+    vr = round(vr, 8)
+    
+    if vl == vr:
+        return 0.032*vl
+    if vl == -vr or math.isnan(vl):
+        return 0
 
 # returns the decorders values
 def getPositionSensors():
@@ -109,8 +120,6 @@ def imuCleaner(imu_reading):
         rad_out = rad_out + 2*math.pi
     return math.degrees(rad_out)
 
-def imuRad():
-    return math.radians(imuCleaner(imu.getRollPitchYaw()[2]))
 
 def generateTiles():
     y = 20
@@ -122,17 +131,23 @@ def generateTiles():
             x+=10
         y-=10
     return tiles
+################# END  #################
 
 # X is undiscovered
-grid = [['x', 'x', 'x', 'x'],
-       ['x', 'x', 'x', 'x'], 
-       ['x', 'x', 'x', 'x'], 
-       ['x', 'x', 'x', 'x']]
+grid = [[0, 0, 0, 0],
+       [0, 0, 0, 0], 
+       [0, 0, 0, 0], 
+       [0, 0, 0, 0]]
 
+def updateGrid(tile):
+    global grid
+    i = tile//4
+    j = tile%4
+    grid[i][j] = 1
+    
 tiles_coordinates = generateTiles()
-for t in tiles_coordinates:
-    print(t)
 
+# robot class & functions
 class RobotPose:
   def __init__(self, x, y, tile, theta):
     self.x = x
@@ -141,31 +156,30 @@ class RobotPose:
     self.theta = theta 
 
 def printRobotPose(obj):
+    global grid
     print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
+    for list in grid:
+        print(list)
+    print("------------------------------------------------------")
 
 ROBOT_POSE = RobotPose(15.0, -15.0, 16, imuCleaner(imu.getRollPitchYaw()[2]))
+updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
 
-def distAfterTask(vl, vr):
-    vl = round(vl, 8)
-    vr = round(vr, 8)
-    
-    if vl == vr:
-        return 0.032*vl
-    if vl == -vr or math.isnan(vl):
-        return 0
 
 # bottom left, top right, robot
 def updateTile(pose):
     global tiles_coordinates
-
+    # up, down, left, right instead looking though all the tiles
+    # the search space is extremly small, this will not affect performance
     for i in range(len(tiles_coordinates)):
-        bl = tiles_coordinates[i][2]
-        br = tiles_coordinates[i][3]
-        tr = tiles_coordinates[i][1]
         tl = tiles_coordinates[i][0]
+        br = tiles_coordinates[i][3]
+        x, y = pose.x, pose.y
 
-        # if pose.x > tr[0] and: 
+        if x > tl[0] and x < br[0]:
+            if y < tl[1] and y > br[1]:
+                return i+1
     return -1
     
 
@@ -189,18 +203,18 @@ def updatePose(obj):
         obj.x -= dist
     elif imu_reading < 272 and imu_reading > 268:
         obj.y -= dist
-    elif imu_reading <= 360 and imu_reading > 358:
-        obj.x += dist
-    elif imu_reading < 2 and imu_reading >= 0:
+    elif imu_reading <= 360 and imu_reading > 358 or imu_reading < 2 and imu_reading >= 0:
         obj.x += dist
 
     tile = updateTile(obj)
-    print(tile)
-    if tile != -1: obj.tile = tile
+    if tile != -1: 
+        obj.tile = tile
+        updateGrid(tile-1)
 
 # 5.024 = max speed in in per second
-def straightMotionD(d, v = 4):
+def straightMotionD(d):
     global ROBOT_POSE
+    v = 5.024
     time = d/v  # 5.024 = v*r ==> max linear speed
     s_time = robot.getTime()
     while robot.step(timestep) != -1:
@@ -232,6 +246,7 @@ def rotationInPlace(direction, angle, v):
             setSpeedIPS(v, -v)
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
+
 
 def task1Motion():
     straightMotionD(30)
