@@ -110,6 +110,7 @@ def distAfterTask(vl, vr):
         return 0.032*vl
     if vl == -vr or math.isnan(vl):
         return 0
+    return 0
 
 # returns the decorders values
 def getPositionSensors():
@@ -149,40 +150,50 @@ def updateGrid(tile):
     j = tile%4
     grid[i][j] = 1
 
+
+def checkWall():
+    pass
 # forward, left, right, backward
+# check if there are walls
 def neighTiles(tile):
     tiles = []
-    i = tile//4
-    j = tile%4
+    n = 4 # could use as an input, not for this lab
+    i = tile//n
+    j = tile%n
 
-    try: #up
+    # print(i, j)
+    #up
+    if i == 0:
+        tiles.append(False)
+    else:
         if grid[i-1][j] == 0:
             tiles.append(True)
         else:
             tiles.append(False)
-    except:
+    # left 
+    if j == 0:
         tiles.append(False)
-    try: #left
+    else:
         if grid[i][j-1] == 0:
             tiles.append(True)
         else:
             tiles.append(False)
-    except:
+    # right
+    if j == n-1:
         tiles.append(False)
-    try: #right
+    else:
         if grid[i][j+1] == 0:
             tiles.append(True)
         else:
             tiles.append(False)
-    except:
+    # down
+    if i == n-1:
         tiles.append(False)
-    try: #down 
+    else:
         if grid[i+1][j] == 0:
             tiles.append(True)
         else:
             tiles.append(False)
-    except:
-        tiles.append(False)
 
     return tiles
 
@@ -204,7 +215,7 @@ def printRobotPose(obj):
         print(list)
     print("-----------------------------------------------")
 
-ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
+ROBOT_POSE = RobotPose(-15.0, -15.0, 13, 90)
 updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
 
@@ -232,19 +243,17 @@ def updatePose(obj):
     imu_reading = imuCleaner(imu.getRollPitchYaw()[2])
     dist = distAfterTask(vl*w_r, vr*w_r)
     obj.theta = imu_reading
-
+    
     prev_l = cur_l
     prev_r = cur_r
 
-    if dist == None:
-        pass
-    elif imu_reading < 92 and imu_reading > 88:
+    if imu_reading < 94 and imu_reading > 86:
         obj.y += dist
-    elif imu_reading < 182 and imu_reading > 178:
+    elif imu_reading < 184 and imu_reading > 176:
         obj.x -= dist
-    elif imu_reading < 272 and imu_reading > 268:
+    elif imu_reading < 274 and imu_reading > 266:
         obj.y -= dist
-    elif imu_reading <= 360 and imu_reading > 358 or imu_reading < 2 and imu_reading >= 0:
+    elif imu_reading <= 360 and imu_reading > 356 or imu_reading < 4 and imu_reading >= 0:
         obj.x += dist
 
     tile = updateTile(obj)
@@ -288,30 +297,14 @@ def rotationInPlace(direction, angle, v):
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
 
-# test
-def rit(angle, v):
-    global ROBOT_POSE
-    s = angle*dmid
-    time = s/v
-    s_time = robot.getTime()
-    while robot.step(timestep) != -1:
-        if robot.getTime()-s_time > time:
-            leftMotor.setVelocity(0)
-            rightMotor.setVelocity(0)
-            updatePose(ROBOT_POSE)
-            printRobotPose(ROBOT_POSE)
-            break 
-
-        setSpeedIPS(-v, v)
-        updatePose(ROBOT_POSE)
-        printRobotPose(ROBOT_POSE)
 
 def frontLidar():
     image = lidar.getRangeImage()
     return (image[0]*39.3701) - half_of_robot
 
+stack = []
 def idk():
-    global grid, ROBOT_POSE
+    global grid, stack, ROBOT_POSE
     flag = False
     for list in grid:
         if 0 in list: 
@@ -321,31 +314,48 @@ def idk():
 
     n_tiles = neighTiles(ROBOT_POSE.tile-1)
     theta = ROBOT_POSE.theta
-    print(theta)
-    if theta < 92 and theta > 88:
+
+    if 0 not in n_tiles: # back track
+        print("Test")
+
+        temp = stack.top()
+        if len(temp) == 1:
+            straightMotionD(-10)
+        else:
+            rotationInPlace('right', pi/2, 0.6)
+        stack.pop()
+    
+    elif theta < 94 and theta > 86:
         if n_tiles[0]:
             straightMotionD(10)
+            stack.append([10])
         else:
             rotationInPlace('left', pi/2, 0.6)
-    elif theta < 182 and theta > 178:
+            stack.append([0.6, 0]) 
+    elif theta < 184 and theta > 176:
         if n_tiles[1]:
             straightMotionD(10)
+            stack.append([10])
         else:
             rotationInPlace('left', pi/2, 0.6)
-    elif theta <= 360 and theta > 358 or theta < 2 and theta >= 0:
+            stack.append([0.6, 1])
+    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
         if n_tiles[2]:
             straightMotionD(10)
+            stack.append([10])
         else:
             rotationInPlace('left', pi/2, 0.6)
-    elif theta < 272 and theta > 268:
+            stack.append([0.6, 1])
+    elif theta < 274 and theta > 266:
         if n_tiles[3]:
             straightMotionD(10)
+            stack.append([10])
         else:
             rotationInPlace('left', pi/2, 0.6)
+            stack.append([0.6, 1])
                 
 while robot.step(timestep) != -1:
     idk()
-
 
 # stuff for task 2
 class Landmark:
