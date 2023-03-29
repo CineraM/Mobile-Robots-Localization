@@ -148,7 +148,44 @@ def updateGrid(tile):
     i = tile//4
     j = tile%4
     grid[i][j] = 1
-    
+
+# forward, left, right, backward
+def neighTiles(tile):
+    tiles = []
+    i = tile//4
+    j = tile%4
+
+    try: #up
+        if grid[i-1][j] == 0:
+            tiles.append(True)
+        else:
+            tiles.append(False)
+    except:
+        tiles.append(False)
+    try: #left
+        if grid[i][j-1] == 0:
+            tiles.append(True)
+        else:
+            tiles.append(False)
+    except:
+        tiles.append(False)
+    try: #right
+        if grid[i][j+1] == 0:
+            tiles.append(True)
+        else:
+            tiles.append(False)
+    except:
+        tiles.append(False)
+    try: #down 
+        if grid[i+1][j] == 0:
+            tiles.append(True)
+        else:
+            tiles.append(False)
+    except:
+        tiles.append(False)
+
+    return tiles
+
 tiles_coordinates = generateTiles()
 
 # robot class & functions
@@ -167,7 +204,7 @@ def printRobotPose(obj):
         print(list)
     print("-----------------------------------------------")
 
-ROBOT_POSE = RobotPose(15.0, -15.0, 16, imuCleaner(imu.getRollPitchYaw()[2]))
+ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
 updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
 
@@ -251,29 +288,64 @@ def rotationInPlace(direction, angle, v):
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
 
+# test
+def rit(angle, v):
+    global ROBOT_POSE
+    s = angle*dmid
+    time = s/v
+    s_time = robot.getTime()
+    while robot.step(timestep) != -1:
+        if robot.getTime()-s_time > time:
+            leftMotor.setVelocity(0)
+            rightMotor.setVelocity(0)
+            updatePose(ROBOT_POSE)
+            printRobotPose(ROBOT_POSE)
+            break 
 
-def testMotion():
-    straightMotionD(30)
-    rotationInPlace('left', pi/2, 0.6)
-    straightMotionD(10)
-    rotationInPlace('left', pi/2, 0.6)
-    straightMotionD(30)
-    rotationInPlace('right', pi/2, 0.6)
-    straightMotionD(10)
-    rotationInPlace('right', pi/2, 0.6)
-    straightMotionD(30)
-    rotationInPlace('left', pi/2, 0.6)
-    straightMotionD(10)
-    rotationInPlace('left', pi/2, 0.6)
-    straightMotionD(30)
+        setSpeedIPS(-v, v)
+        updatePose(ROBOT_POSE)
+        printRobotPose(ROBOT_POSE)
 
-flag = True
+def frontLidar():
+    image = lidar.getRangeImage()
+    return (image[0]*39.3701) - half_of_robot
+
+def idk():
+    global grid, ROBOT_POSE
+    flag = False
+    for list in grid:
+        if 0 in list: 
+            flag = True
+            break
+    if flag == False: return
+
+    n_tiles = neighTiles(ROBOT_POSE.tile-1)
+    theta = ROBOT_POSE.theta
+    print(theta)
+    if theta < 92 and theta > 88:
+        if n_tiles[0]:
+            straightMotionD(10)
+        else:
+            rotationInPlace('left', pi/2, 0.6)
+    elif theta < 182 and theta > 178:
+        if n_tiles[1]:
+            straightMotionD(10)
+        else:
+            rotationInPlace('left', pi/2, 0.6)
+    elif theta <= 360 and theta > 358 or theta < 2 and theta >= 0:
+        if n_tiles[2]:
+            straightMotionD(10)
+        else:
+            rotationInPlace('left', pi/2, 0.6)
+    elif theta < 272 and theta > 268:
+        if n_tiles[3]:
+            straightMotionD(10)
+        else:
+            rotationInPlace('left', pi/2, 0.6)
+                
 while robot.step(timestep) != -1:
-    # print_robot_pose(robot_pose)
-    # rotationInPlace('left', pi/2, 0.8)
-    if flag:
-        testMotion()
-        flag = False
+    idk()
+
 
 # stuff for task 2
 class Landmark:
