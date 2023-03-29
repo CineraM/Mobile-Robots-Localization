@@ -4,7 +4,6 @@ from controller import Robot
 # import numpy as it may be used in future labs
 import numpy as np
 import math
-
 #######################################################
 # Creates Robot
 #######################################################
@@ -101,6 +100,8 @@ def setSpeedIPS(vl, vr):
     leftMotor.setVelocity(vl)
     rightMotor.setVelocity(vr)
 
+# calculates distance after task
+# For this lab only calculate when abs(vl) = abs(vr)
 def distAfterTask(vl, vr):
     vl = round(vl, 8)
     vr = round(vr, 8)
@@ -114,13 +115,14 @@ def distAfterTask(vl, vr):
 def getPositionSensors():
     return leftposition_sensor.getValue(), rightposition_sensor.getValue()
 
+# return the imu reading in degrees instead of radians
 def imuCleaner(imu_reading):
     rad_out = imu_reading
     if rad_out < 0:
         rad_out = rad_out + 2*math.pi
     return math.degrees(rad_out)
 
-
+# code that generates the 3 points for all tiles, 16 tiles
 def generateTiles():
     y = 20
     tiles = []
@@ -133,12 +135,14 @@ def generateTiles():
     return tiles
 ################# END  #################
 
-# X is undiscovered
+# 0 = undiscovered, 1 = discovered
 grid = [[0, 0, 0, 0],
        [0, 0, 0, 0], 
        [0, 0, 0, 0], 
        [0, 0, 0, 0]]
 
+################# Updating-Pose Code #################
+# change 
 def updateGrid(tile):
     global grid
     i = tile//4
@@ -155,17 +159,17 @@ class RobotPose:
     self.tile = tile
     self.theta = theta 
 
+#print the grid & robot pose
 def printRobotPose(obj):
     global grid
     print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
     for list in grid:
         print(list)
-    print("------------------------------------------------------")
+    print("-----------------------------------------------")
 
 ROBOT_POSE = RobotPose(15.0, -15.0, 16, imuCleaner(imu.getRollPitchYaw()[2]))
 updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
-
 
 # bottom left, top right, robot
 def updateTile(pose):
@@ -181,8 +185,8 @@ def updateTile(pose):
             if y < tl[1] and y > br[1]:
                 return i+1
     return -1
-    
 
+# Update pose and grid
 def updatePose(obj):
     global prev_l, prev_r
     cur_l, cur_r = getPositionSensors()
@@ -248,7 +252,7 @@ def rotationInPlace(direction, angle, v):
         printRobotPose(ROBOT_POSE)
 
 
-def task1Motion():
+def testMotion():
     straightMotionD(30)
     rotationInPlace('left', pi/2, 0.6)
     straightMotionD(10)
@@ -264,80 +268,38 @@ def task1Motion():
     straightMotionD(30)
 
 flag = True
-
 while robot.step(timestep) != -1:
     # print_robot_pose(robot_pose)
     # rotationInPlace('left', pi/2, 0.8)
     if flag:
-        task1Motion()
+        testMotion()
         flag = False
-    # else:
-    #     setSpeedIPS(-2, 2)
-
-
-
-
-
-
-
-    # # Read the sensors:
-    # # Getting full Range Image from Lidar returns a list of 1800 distances = 5 layers X 360 distances
-    # full_range_image = lidar.getRangeImage()
-    # # print size of Range Image
-    # print('#################################################################')
-    # print("Lidar's Full Range Image Size: ", len(full_range_image))
-    # # Compare Distance Sensors to Lidar Ranges
-    # front_dist = frontDistanceSensor.getValue()
-    # right_dist = rightDistanceSensor.getValue()
-    # rear_dist = rearDistanceSensor.getValue()
-    # left_dist = leftDistanceSensor.getValue()
-
-    # print("Distance Sensor vs Lidar")
-    # print("\tFront:\t", front_dist, "\t|", full_range_image[0])
-    # print("\tRight:\t", right_dist, "\t|", full_range_image[90])
-    # print("\tRear:\t", rear_dist, "\t|", full_range_image[180])
-    # print("\tLeft:\t", left_dist, "\t|", full_range_image[270])
-
-    # # Enter here functions to send actuator commands, like:
-    # leftMotor.setVelocity(6)
-    # rightMotor.setVelocity(6)
-
-    # if full_range_image[0] < .07:
-
-    #     leftMotor.setVelocity(0)
-    #     rightMotor.setVelocity(0)
-    #     break
-# Enter here exit cleanup code.
 
 # stuff for task 2
 class Landmark:
-  def __init__(self, color, x, y):
+  def __init__(self, color, x, y, r):
     self.color = color
     self.x = x 
-    self.y = y 
+    self.y = y
+    self.r = r
 
-lm1 = Landmark('yellow', -20, 20)
-lm2 = Landmark('red', 20, 20)
-lm3 = Landmark('green', -20, -20)
-lm4 = Landmark('yellow', 20, -20)
+lnm1 = Landmark('yellow', -20, 20)
+lnm2 = Landmark('red', 20, 20)
+lnm3 = Landmark('green', -20, -20)
+lnm4 = Landmark('blue', 20, -20)
 
+# lnm
+#[x, y, radius]
+def trilateration(c1, c2, c3):
+    
+    A = (-2*c1.x + 2*c2.x)
+    B = (-2*c1.y + 2*c2.y)
+    C = ( pow(c1.r, 2) -  pow(c2.r, 2) - pow(c1.x, 2) + pow(c2.x, 2) - pow(c1.y, 2) + pow(c2.y, 2))
 
+    D = (-2*c2.x + 2*c3.x)
+    E = (-2*c2.y + 2*c3.y)
+    F = ( pow(c2.r, 2) -  pow(c3.r, 2) - pow(c2.x, 2) + pow(c2.x, 2) - pow(c2.y, 2) + pow(c3.y, 2))
 
-# not using this 
-# return the distance in inches from the front pid
-def frontDist():
-    return frontDistanceSensor.getValue()*39.3701
-
-def frontLidar():
-    image = lidar.getRangeImage()
-    return (image[0]*39.3701) - half_of_robot
-
-
-def vSaturation(v, max):
-    if math.isinf(v):
-        return max
-    if v > max:
-        return max
-    if v < -max:
-        return -max
-    return v
+    x = (C*E - F*B) / (E*A - B*D)
+    y = (C*D - A*F)
+    return x, y
