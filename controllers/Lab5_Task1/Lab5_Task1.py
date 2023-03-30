@@ -216,11 +216,16 @@ def neighTiles(tile, theta=90):
             valid_neigh.append(True)
         else:
             valid_neigh.append(False)
-        
+    
+    print(valid_neigh)
     valid_walls = checkWalls(theta)
     for i in range(len(valid_walls)):
         if valid_walls[i] == False:
             valid_neigh[i] = False
+        
+    # print(valid_walls)
+    # print(valid_neigh)
+    # print("-------------------------")
 
     return valid_neigh
 
@@ -239,7 +244,7 @@ def printRobotPose(obj):
     global grid
     print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
     for list in grid:
-        print(list)
+        print("\t" + str(list))
     print("-----------------------------------------------")
 
 ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
@@ -318,6 +323,7 @@ def rotationInPlace(direction, angle, v):
     s = angle*dmid
     time = s/v
     s_time = robot.getTime()
+
     while robot.step(timestep) != -1:
         if robot.getTime()-s_time > time:
             leftMotor.setVelocity(0)
@@ -329,6 +335,7 @@ def rotationInPlace(direction, angle, v):
             setSpeedIPS(-v, v)
         else:
             setSpeedIPS(v, -v)
+            
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
 
@@ -339,10 +346,66 @@ def traversalStrightHelper():
     straightMotionD(10)
     stack.append(1)
     
-def traversalCurvetHelper():
+def traversalRotationtHelper():
     global stack
     rotationInPlace('left', pi/2, 0.6)
     stack.append(0)
+
+
+def traversalRotationtHelper(theta, neighbors):
+
+    if theta < 94 and theta > 86:
+        if neighbors[1]:
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(0)
+        elif neighbors[2]:
+            rotationInPlace('right', pi/2, 0.6)
+            stack.append(-1)
+        elif neighbors[3]:
+            rotationInPlace('left', pi/2, 0.6)
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(-1)
+            stack.append(-1)
+
+    elif theta < 184 and theta > 176:
+        if neighbors[3]:
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(0)
+            return
+        elif neighbors[0]:
+            rotationInPlace('right', pi/2, 0.6)
+            stack.append(-1)
+        elif neighbors[2]:
+            rotationInPlace('left', pi/2, 0.6)
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(-1)
+            stack.append(-1)
+
+    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
+        if neighbors[0]:
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(0)
+        elif neighbors[3]:
+            rotationInPlace('right', pi/2, 0.6)
+            stack.append(-1)
+        elif neighbors[1]:
+            rotationInPlace('righ', pi/2, 0.6)
+            rotationInPlace('righ', pi/2, 0.6)
+            stack.append(0)
+            stack.append(0)
+
+    elif theta < 274 and theta > 266:
+        if neighbors[2]:
+            rotationInPlace('left', pi/2, 0.6)
+            stack.append(0)
+        elif neighbors[1]:
+            rotationInPlace('right', pi/2, 0.6)
+            stack.append(-1)
+        elif neighbors[0]:
+            rotationInPlace('righ', pi/2, 0.6)
+            rotationInPlace('righ', pi/2, 0.6)
+            stack.append(0)
+            stack.append(0)
 
 def traverse():
     global grid, stack, ROBOT_POSE
@@ -356,36 +419,38 @@ def traverse():
     n_tiles = neighTiles(ROBOT_POSE.tile-1, ROBOT_POSE.theta)
     theta = ROBOT_POSE.theta
 
-    print(n_tiles)
-    print(stack)
-    if True not in n_tiles: # back track
-        straightMotionD(-10)
-        # top = stack.pop()
-        # if top == 1:
-        #     straightMotionD(-10)
-        # else:
-        #     rotationInPlace('right', pi/2, 0.6)
+
+    # print(stack)
+    # BACK TRACK
+    if True not in n_tiles: 
+        top = stack.pop()
+        if top == 1:
+            straightMotionD(-10)
+        elif top == 0:
+            rotationInPlace('right', pi/2, 0.6)
+        elif top == -1:
+            rotationInPlace('left', pi/2, 0.6)
     
     elif theta < 94 and theta > 86:
         if n_tiles[0]:
             traversalStrightHelper()
         else:
-            traversalCurvetHelper()
+            traversalRotationtHelper(theta, n_tiles)
     elif theta < 184 and theta > 176:
         if n_tiles[1]:
             traversalStrightHelper()
         else:
-            traversalCurvetHelper()
+            traversalRotationtHelper(theta, n_tiles)
     elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
         if n_tiles[2]:
             traversalStrightHelper()
         else:
-            traversalCurvetHelper()
+            traversalRotationtHelper(theta, n_tiles)
     elif theta < 274 and theta > 266:
         if n_tiles[3]:
             traversalStrightHelper()
         else:
-            traversalCurvetHelper()
+            traversalRotationtHelper(theta, n_tiles)
                 
 while robot.step(timestep) != -1:
     traverse()
