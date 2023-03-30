@@ -90,6 +90,7 @@ w_dia = 1.6
 w_r = w_dia/2
 pi = math.pi
 half_of_robot = 0.037*39.3701 
+toIn = 39.3701
 
 
 ################# HELPER FUNCTIONS #################
@@ -150,52 +151,78 @@ def updateGrid(tile):
     j = tile%4
     grid[i][j] = 1
 
+def getLidar():
+    image = lidar.getRangeImage()
+    ret = []
+    ret.append(image[0]*toIn - half_of_robot)   # front
+    ret.append(image[270]*toIn - half_of_robot) # left
+    ret.append(image[90]*toIn - half_of_robot)  # right
+    ret.append(image[180]*toIn - half_of_robot) # back
+    
+    return ret
 
-def checkWall():
-    pass
+def checkWalls(theta):
+    # front, left, right, back
+    lidar = getLidar()
+    no_wall = []
+    for lid in lidar:
+        if lid < 4:
+            no_wall.append(False)
+        else:
+            no_wall.append(True)
+    
+    if theta < 94 and theta > 86:
+        return no_wall 
+    elif theta < 184 and theta > 176:
+        return [no_wall[2], no_wall[0], no_wall[3], no_wall[1]]
+    elif theta < 274 and theta > 266:
+        return [no_wall[3], no_wall[2], no_wall[1], no_wall[0]]
+    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
+        return [no_wall[1], no_wall[3], no_wall[0], no_wall[2]]
+
 # forward, left, right, backward
 # check if there are walls
-def neighTiles(tile):
-    tiles = []
+def neighTiles(tile, theta=90):
+    valid_neigh = []
     n = 4 # could use as an input, not for this lab
     i = tile//n
     j = tile%n
 
-    # print(i, j)
     #up
-    if i == 0:
-        tiles.append(False)
+    if i == 0: valid_neigh.append(False)
     else:
         if grid[i-1][j] == 0:
-            tiles.append(True)
+            valid_neigh.append(True)
         else:
-            tiles.append(False)
+            valid_neigh.append(False)
     # left 
-    if j == 0:
-        tiles.append(False)
+    if j == 0: valid_neigh.append(False)
     else:
         if grid[i][j-1] == 0:
-            tiles.append(True)
+            valid_neigh.append(True)
         else:
-            tiles.append(False)
+            valid_neigh.append(False)
     # right
-    if j == n-1:
-        tiles.append(False)
+    if j == n-1:valid_neigh.append(False)
     else:
         if grid[i][j+1] == 0:
-            tiles.append(True)
+            valid_neigh.append(True)
         else:
-            tiles.append(False)
+            valid_neigh.append(False)
     # down
-    if i == n-1:
-        tiles.append(False)
+    if i == n-1:valid_neigh.append(False)
     else:
         if grid[i+1][j] == 0:
-            tiles.append(True)
+            valid_neigh.append(True)
         else:
-            tiles.append(False)
+            valid_neigh.append(False)
+        
+    valid_walls = checkWalls(theta)
+    for i in range(len(valid_walls)):
+        if valid_walls[i] == False:
+            valid_neigh[i] = False
 
-    return tiles
+    return valid_neigh
 
 tiles_coordinates = generateTiles()
 
@@ -215,7 +242,7 @@ def printRobotPose(obj):
         print(list)
     print("-----------------------------------------------")
 
-ROBOT_POSE = RobotPose(-15.0, -15.0, 13, 90)
+ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
 updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
 
@@ -265,6 +292,11 @@ def updatePose(obj):
 def straightMotionD(d):
     global ROBOT_POSE
     v = 5.024
+    is_neg = False
+    if d < 0:
+        is_neg = True
+        d = abs(d)
+
     time = d/v  # 5.024 = v*r ==> max linear speed
     s_time = robot.getTime()
     while robot.step(timestep) != -1:
@@ -273,7 +305,10 @@ def straightMotionD(d):
             updatePose(ROBOT_POSE)
             printRobotPose(ROBOT_POSE)
             break
-        setSpeedIPS(v, v)
+        if is_neg:
+            setSpeedIPS(-v, -v)
+        else:
+            setSpeedIPS(v, v)
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
 
@@ -297,13 +332,19 @@ def rotationInPlace(direction, angle, v):
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
 
-
-def frontLidar():
-    image = lidar.getRangeImage()
-    return (image[0]*39.3701) - half_of_robot
-
+############## traversal logic ############
 stack = []
-def idk():
+def traversalStrightHelper():
+    global stack
+    straightMotionD(10)
+    stack.append(1)
+    
+def traversalCurvetHelper():
+    global stack
+    rotationInPlace('left', pi/2, 0.6)
+    stack.append(0)
+
+def traverse():
     global grid, stack, ROBOT_POSE
     flag = False
     for list in grid:
@@ -312,50 +353,42 @@ def idk():
             break
     if flag == False: return
 
-    n_tiles = neighTiles(ROBOT_POSE.tile-1)
+    n_tiles = neighTiles(ROBOT_POSE.tile-1, ROBOT_POSE.theta)
     theta = ROBOT_POSE.theta
 
-    if 0 not in n_tiles: # back track
-        print("Test")
-
-        temp = stack.top()
-        if len(temp) == 1:
-            straightMotionD(-10)
-        else:
-            rotationInPlace('right', pi/2, 0.6)
-        stack.pop()
+    print(n_tiles)
+    print(stack)
+    if True not in n_tiles: # back track
+        straightMotionD(-10)
+        # top = stack.pop()
+        # if top == 1:
+        #     straightMotionD(-10)
+        # else:
+        #     rotationInPlace('right', pi/2, 0.6)
     
     elif theta < 94 and theta > 86:
         if n_tiles[0]:
-            straightMotionD(10)
-            stack.append([10])
+            traversalStrightHelper()
         else:
-            rotationInPlace('left', pi/2, 0.6)
-            stack.append([0.6, 0]) 
+            traversalCurvetHelper()
     elif theta < 184 and theta > 176:
         if n_tiles[1]:
-            straightMotionD(10)
-            stack.append([10])
+            traversalStrightHelper()
         else:
-            rotationInPlace('left', pi/2, 0.6)
-            stack.append([0.6, 1])
+            traversalCurvetHelper()
     elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
         if n_tiles[2]:
-            straightMotionD(10)
-            stack.append([10])
+            traversalStrightHelper()
         else:
-            rotationInPlace('left', pi/2, 0.6)
-            stack.append([0.6, 1])
+            traversalCurvetHelper()
     elif theta < 274 and theta > 266:
         if n_tiles[3]:
-            straightMotionD(10)
-            stack.append([10])
+            traversalStrightHelper()
         else:
-            rotationInPlace('left', pi/2, 0.6)
-            stack.append([0.6, 1])
+            traversalCurvetHelper()
                 
 while robot.step(timestep) != -1:
-    idk()
+    traverse()
 
 # stuff for task 2
 class Landmark:
@@ -369,19 +402,3 @@ lnm1 = Landmark('yellow', -20, 20)
 lnm2 = Landmark('red', 20, 20)
 lnm3 = Landmark('green', -20, -20)
 lnm4 = Landmark('blue', 20, -20)
-
-# lnm
-#[x, y, radius]
-def trilateration(c1, c2, c3):
-    
-    A = (-2*c1.x + 2*c2.x)
-    B = (-2*c1.y + 2*c2.y)
-    C = ( pow(c1.r, 2) -  pow(c2.r, 2) - pow(c1.x, 2) + pow(c2.x, 2) - pow(c1.y, 2) + pow(c2.y, 2))
-
-    D = (-2*c2.x + 2*c3.x)
-    E = (-2*c2.y + 2*c3.y)
-    F = ( pow(c2.r, 2) -  pow(c3.r, 2) - pow(c2.x, 2) + pow(c2.x, 2) - pow(c2.y, 2) + pow(c3.y, 2))
-
-    x = (C*E - F*B) / (E*A - B*D)
-    y = (C*D - A*F)
-    return x, y
