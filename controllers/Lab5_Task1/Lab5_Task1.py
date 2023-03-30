@@ -419,7 +419,9 @@ def traverse():
         if 0 in list: 
             flag = True
             break
-    if flag == False: return
+    if flag == False: # victory spin :) 
+        setSpeedIPS(-2, 2)
+        return
 
     n_tiles = neighTiles(ROBOT_POSE.tile-1, ROBOT_POSE.theta)
     theta = ROBOT_POSE.theta
