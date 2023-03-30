@@ -94,6 +94,16 @@ toIn = 39.3701
 
 
 ################# HELPER FUNCTIONS #################
+def getLidar():
+    image = lidar.getRangeImage()
+    ret = []
+    ret.append(image[0]*toIn - half_of_robot)   # front
+    ret.append(image[270]*toIn - half_of_robot) # left
+    ret.append(image[90]*toIn - half_of_robot)  # right
+    ret.append(image[180]*toIn - half_of_robot) # back
+    
+    return ret
+
 # set speed to both motors, input in Inches
 def setSpeedIPS(vl, vr):
     vl /= w_r
@@ -151,87 +161,9 @@ def updateGrid(tile):
     j = tile%4
     grid[i][j] = 1
 
-def getLidar():
-    image = lidar.getRangeImage()
-    ret = []
-    ret.append(image[0]*toIn - half_of_robot)   # front
-    ret.append(image[270]*toIn - half_of_robot) # left
-    ret.append(image[90]*toIn - half_of_robot)  # right
-    ret.append(image[180]*toIn - half_of_robot) # back
-    
-    return ret
-
-def checkWalls(theta):
-    # front, left, right, back
-    lidar = getLidar()
-    no_wall = []
-    for lid in lidar:
-        if lid < 4:
-            no_wall.append(False)
-        else:
-            no_wall.append(True)
-    
-    if theta < 94 and theta > 86:
-        return no_wall 
-    elif theta < 184 and theta > 176:
-        return [no_wall[2], no_wall[0], no_wall[3], no_wall[1]]
-    elif theta < 274 and theta > 266:
-        return [no_wall[3], no_wall[2], no_wall[1], no_wall[0]]
-    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
-        return [no_wall[1], no_wall[3], no_wall[0], no_wall[2]]
-
-# forward, left, right, backward
-# check if there are walls
-def neighTiles(tile, theta=90):
-    valid_neigh = []
-    n = 4 # could use as an input, not for this lab
-    i = tile//n
-    j = tile%n
-
-    #up
-    if i == 0: valid_neigh.append(False)
-    else:
-        if grid[i-1][j] == 0:
-            valid_neigh.append(True)
-        else:
-            valid_neigh.append(False)
-    # left 
-    if j == 0: valid_neigh.append(False)
-    else:
-        if grid[i][j-1] == 0:
-            valid_neigh.append(True)
-        else:
-            valid_neigh.append(False)
-    # right
-    if j == n-1:valid_neigh.append(False)
-    else:
-        if grid[i][j+1] == 0:
-            valid_neigh.append(True)
-        else:
-            valid_neigh.append(False)
-    # down
-    if i == n-1:valid_neigh.append(False)
-    else:
-        if grid[i+1][j] == 0:
-            valid_neigh.append(True)
-        else:
-            valid_neigh.append(False)
-    
-    print(valid_neigh)
-    valid_walls = checkWalls(theta)
-    for i in range(len(valid_walls)):
-        if valid_walls[i] == False:
-            valid_neigh[i] = False
-        
-    # print(valid_walls)
-    # print(valid_neigh)
-    # print("-------------------------")
-
-    return valid_neigh
-
 tiles_coordinates = generateTiles()
 
-# robot class & functions
+################ robot class & functions #####################
 class RobotPose:
   def __init__(self, x, y, tile, theta):
     self.x = x
@@ -292,7 +224,11 @@ def updatePose(obj):
     if tile != -1: 
         obj.tile = tile
         updateGrid(tile-1)
+################ robot class & functions #####################
 
+
+
+################ motion functions #####################
 # 5.024 = max speed in in per second
 def straightMotionD(d):
     global ROBOT_POSE
@@ -338,8 +274,77 @@ def rotationInPlace(direction, angle, v):
             
         updatePose(ROBOT_POSE)
         printRobotPose(ROBOT_POSE)
+################ motion functions #####################
 
 ############## traversal logic ############
+def checkWalls(theta):
+    # front, left, right, back
+    lidar = getLidar()
+    no_wall = []
+    for lid in lidar:
+        if lid < 4:
+            no_wall.append(False)
+        else:
+            no_wall.append(True)
+    
+    if theta < 94 and theta > 86:
+        return no_wall 
+    elif theta < 184 and theta > 176:
+        return [no_wall[2], no_wall[0], no_wall[3], no_wall[1]]
+    elif theta < 274 and theta > 266:
+        return [no_wall[3], no_wall[2], no_wall[1], no_wall[0]]
+    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
+        return [no_wall[1], no_wall[3], no_wall[0], no_wall[2]]
+
+# forward, left, right, backward
+# check if there are walls
+def neighTiles(tile, theta=90):
+    valid_neigh = []
+    n = 4 # could use as an input, not for this lab
+    i = tile//n
+    j = tile%n
+
+    #up
+    if i == 0: valid_neigh.append(False)
+    else:
+        if grid[i-1][j] == 0:
+            valid_neigh.append(True)
+        else:
+            valid_neigh.append(False)
+    # left 
+    if j == 0: valid_neigh.append(False)
+    else:
+        if grid[i][j-1] == 0:
+            valid_neigh.append(True)
+        else:
+            valid_neigh.append(False)
+    # right
+    if j == n-1:valid_neigh.append(False)
+    else:
+        if grid[i][j+1] == 0:
+            valid_neigh.append(True)
+        else:
+            valid_neigh.append(False)
+    # down
+    if i == n-1:valid_neigh.append(False)
+    else:
+        if grid[i+1][j] == 0:
+            valid_neigh.append(True)
+        else:
+            valid_neigh.append(False)
+    
+    # print(valid_neigh)
+    valid_walls = checkWalls(theta)
+    for i in range(len(valid_walls)):
+        if valid_walls[i] == False:
+            valid_neigh[i] = False
+        
+    # print(valid_walls)
+    # print(valid_neigh)
+    # print("-------------------------")
+
+    return valid_neigh
+
 stack = []
 def traversalStrightHelper():
     global stack
@@ -419,7 +424,6 @@ def traverse():
     n_tiles = neighTiles(ROBOT_POSE.tile-1, ROBOT_POSE.theta)
     theta = ROBOT_POSE.theta
 
-
     # print(stack)
     # BACK TRACK
     if True not in n_tiles: 
@@ -451,7 +455,8 @@ def traverse():
             traversalStrightHelper()
         else:
             traversalRotationtHelper(theta, n_tiles)
-                
+############## traversal logic ############
+
 while robot.step(timestep) != -1:
     traverse()
 
