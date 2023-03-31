@@ -461,16 +461,3 @@ def traverse():
 
 while robot.step(timestep) != -1:
     traverse()
-
-# stuff for task 2
-class Landmark:
-  def __init__(self, color, x, y, r):
-    self.color = color
-    self.x = x 
-    self.y = y
-    self.r = r
-
-lnm1 = Landmark('yellow', -20, 20)
-lnm2 = Landmark('red', 20, 20)
-lnm3 = Landmark('green', -20, -20)
-lnm4 = Landmark('blue', 20, -20)
