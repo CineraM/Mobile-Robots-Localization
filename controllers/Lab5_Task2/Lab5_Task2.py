@@ -92,6 +92,65 @@ pi = math.pi
 half_of_robot = 0.037*39.3701 
 toIn = 39.3701
 
+############## wall-follow ############
+def vSaturation(v, max):
+    if math.isinf(v):
+        return max
+    if v > max:
+        return max
+    if v < -max:
+        return -max
+    return v
+
+def frontLidar():
+    image = lidar.getRangeImage()
+    return (image[0]*39.3701) - half_of_robot
+
+def getLidarMin():
+    image = lidar.getRangeImage()
+    toIn = 39.3701
+
+    min_left = 999
+    min_right = 999
+
+    for i in range(270, 360):
+        if min_left > image[i]:
+            min_left = image[i]
+    
+    for i in range(0, 91):
+        if min_right > image[i]:
+            min_right = image[i]
+
+    return [min_left*toIn - half_of_robot, min_right*toIn - half_of_robot]
+
+def wallFollowLidar(wall, flid, k):
+    lids = getLidarMin()
+
+    left_lid = lids[0]
+    right_lid = lids[1]
+    dist_to_wall = 1.5
+    v = vSaturation(flid, 4)
+    error = (v - 3)  # target distance to wall = 2.5 inches
+    pid = v-abs(error)*k
+    if wall == 'right':    
+        if flid > 3:
+            if right_lid < dist_to_wall:    # too close to target wall
+                setSpeedIPS(pid, v)
+            elif right_lid > dist_to_wall:  # too far to target wall
+                setSpeedIPS(v, pid)
+            elif left_lid < dist_to_wall:   # too close to opposite wall
+                setSpeedIPS(v, pid)
+        else:
+            setSpeedIPS(v, v)
+
+def wallFollow():
+    fpid = frontLidar()
+    wall = 'right'
+    if fpid < 2.5:  # to close to wall, rotate 45 deg away from it
+        rotationInPlace('left', pi/4, 0.9)
+    else:   # else follow wall
+        wallFollowLidar(wall, frontLidar(), 1)
+############## wall-follow ############
 
 ################# HELPER FUNCTIONS #################
 def getLidar():
@@ -101,7 +160,6 @@ def getLidar():
     ret.append(image[270]*toIn - half_of_robot) # left
     ret.append(image[90]*toIn - half_of_robot)  # right
     ret.append(image[180]*toIn - half_of_robot) # back
-    
     return ret
 
 # set speed to both motors, input in Inches
@@ -135,24 +193,28 @@ def imuCleaner(imu_reading):
     return math.degrees(rad_out)
 
 # code that generates the 3 points for all tiles, 16 tiles
-def generateTiles():
+def generateTiles(n):
     y = 20
     tiles = []
-    for i in range(4):
+    for i in range(n):
         x = -20
-        for j in range(4):
+        for j in range(n):
             tiles.append([[x, y], [x+10, y], [x, y-10], [x+10, y-10]])
             x+=10
         y-=10
     return tiles
 ################# HELPER FUNCTIONS #################
+def generateGrid(n):
+    ret = []
+    for i in range(n):
+        temp = [] 
+        for j in range(n):
+            temp.append(0)
+        ret.append(temp)
+    return ret
 
 # 0 = undiscovered, 1 = discovered
-grid = [[0, 0, 0, 0],
-       [0, 0, 0, 0], 
-       [0, 0, 0, 0], 
-       [0, 0, 0, 0]]
-
+grid = generateGrid(4)
 ################ robot class & functions #####################
 class Landmark:
   def __init__(self, color, x, y, r):
@@ -179,7 +241,6 @@ def triliteration(l1, l2, l3):
     x = (C*E-F*B)/(E*A-B*D)
     y = (C*D-A*F)/(B*D-A*E)
     return x, y
-
 
 # yellow = 379
 # red = 372
@@ -209,22 +270,32 @@ def findLandmarks():
 
     myset = []
     landmarks = []
+    lower = 25  # image range
+    upper = 55  # the objects needs to be within 40 pixels in the middle of the camera (of 80 pixels)
     if len(fc_objects) > 0:
-        if fc_objects[0].getId() not in myset:
-            myset.append(fc_objects[0].getId())
-            landmarks.append(updateLmR(fc_objects[0].getId(), fc_objects[0].getPosition()[0] * 39.3701))
+        pos_image = fc_objects[0].getPositionOnImage()[0]
+        if pos_image >= lower and pos_image <= upper:
+            if fc_objects[0].getId() not in myset:
+                myset.append(fc_objects[0].getId())
+                landmarks.append(updateLmR(fc_objects[0].getId(), fc_objects[0].getPosition()[0] * 39.3701))
     if len(lc_objects) > 0:
-        if lc_objects[0].getId() not in myset:
-            myset.append(lc_objects[0].getId())
-            landmarks.append(updateLmR(lc_objects[0].getId(), lc_objects[0].getPosition()[0] * 39.3701))
+        pos_image = lc_objects[0].getPositionOnImage()[0]
+        if pos_image >= lower and pos_image <= upper:
+            if lc_objects[0].getId() not in myset:
+                myset.append(lc_objects[0].getId())
+                landmarks.append(updateLmR(lc_objects[0].getId(), lc_objects[0].getPosition()[0] * 39.3701))
     if len(rc_objects) > 0:
-        if rc_objects[0].getId() not in myset:
-            myset.append(rc_objects[0].getId())
-            landmarks.append(updateLmR(rc_objects[0].getId(), rc_objects[0].getPosition()[0] * 39.3701))
+        pos_image = rc_objects[0].getPositionOnImage()[0]
+        if pos_image >= lower and pos_image <= upper:
+            if rc_objects[0].getId() not in myset:
+                myset.append(rc_objects[0].getId())
+                landmarks.append(updateLmR(rc_objects[0].getId(), rc_objects[0].getPosition()[0] * 39.3701))
     if len(bc_objects) > 0:
-        if bc_objects[0].getId() not in myset:
-            myset.append(bc_objects[0].getId())
-            landmarks.append(updateLmR(bc_objects[0].getId(), bc_objects[0].getPosition()[0] * 39.3701))
+        pos_image = bc_objects[0].getPositionOnImage()[0]
+        if pos_image >= lower and pos_image <= upper:
+            if bc_objects[0].getId() not in myset:
+                myset.append(bc_objects[0].getId())
+                landmarks.append(updateLmR(bc_objects[0].getId(), bc_objects[0].getPosition()[0] * 39.3701))
     
     if len(landmarks) >= 3:
         landmarks = sorted(landmarks,key=lambda x: (x.color)) # sort based on first index, always maintain the same order
@@ -247,7 +318,7 @@ def updateGrid(tile):
     j = tile%4
     grid[i][j] = 1
 
-tiles_coordinates = generateTiles()
+tiles_coordinates = generateTiles(4)
 
 #print the grid & robot pose
 def printRobotPose(obj):
@@ -258,11 +329,10 @@ def printRobotPose(obj):
     print("-----------------------------------------------")
 
 ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
-updateGrid(ROBOT_POSE.tile-1)
 prev_l, prev_r = getPositionSensors()
 
 # bottom left, top right, robot
-def updateTile(pose):
+def findCurTile(pose):
     global tiles_coordinates
     # up, down, left, right instead looking though all the tiles
     # the search space is extremly small, this will not affect performance
@@ -298,9 +368,9 @@ def updatePose(obj):
     elif imu_reading <= 360 and imu_reading > 356 or imu_reading < 4 and imu_reading >= 0:
         obj.x += dist
 
-    tile = updateTile(obj)
+    tile = findCurTile(obj)
     if tile != -1: 
-        obj.tile = tile
+        obj.tile = tile # updating the cur tile
         updateGrid(tile-1)
 ################ robot class & functions #####################
 
@@ -308,9 +378,8 @@ def updatePose(obj):
 
 ################ motion functions #####################
 # 5.024 = max speed in in per second
-def straightMotionD(d):
+def straightMotionD(d, v = 5.024):
     global ROBOT_POSE
-    v = 5.024
     is_neg = False
     if d < 0:
         is_neg = True
@@ -360,7 +429,7 @@ def checkWalls(theta):
     lidar = getLidar()
     no_wall = []
     for lid in lidar:
-        if lid < 4:
+        if lid < 6:
             no_wall.append(False)
         else:
             no_wall.append(True)
@@ -538,76 +607,76 @@ def traverse():
             traversalRotationtHelper(theta, n_tiles)
 ############## traversal logic ############
 
+############## triliteration to traversal ############
+def rotateUntil90():
+    while robot.step(timestep) != -1:
+        setSpeedIPS(0.3, -0.3)
+        theta = imuCleaner(imu.getRollPitchYaw()[2])
+        if theta <= 90.3 and theta >= 89.7:
+            setSpeedIPS(0, 0)
+            break
 
-############## wall-follow ############
-def vSaturation(v, max):
-    if math.isinf(v):
-        return max
-    if v > max:
-        return max
-    if v < -max:
-        return -max
-    return v
+def moveToCenter(x, y, pose):
 
-def frontLidar():
-    image = lidar.getRangeImage()
-    return (image[0]*39.3701) - half_of_robot
+    x_diff = abs(x - pose.x)
+    y_diff = abs(y - pose.y)
 
-def getLidarMin():
-    image = lidar.getRangeImage()
-    toIn = 39.3701
-
-    min_left = 999
-    min_right = 999
-
-    for i in range(270, 360):
-        if min_left > image[i]:
-            min_left = image[i]
-    
-    for i in range(0, 91):
-        if min_right > image[i]:
-            min_right = image[i]
-
-    return [min_left*toIn - half_of_robot, min_right*toIn - half_of_robot]
-def wallFollowLidar(wall, flid, k):
-    lids = getLidarMin()
-
-    left_lid = lids[0]
-    right_lid = lids[1]
-    dist_to_wall = 1.5
-    v = vSaturation(flid, 4)
-    error = (v - 2.5)  # target distance to wall = 2.5 inches
-    pid = v-abs(error)*k
-    if wall == 'right':    
-        if flid > 3:
-            if right_lid < dist_to_wall:    # too close to target wall
-                setSpeedIPS(pid, v)
-            elif right_lid > dist_to_wall:  # too far to target wall
-                setSpeedIPS(v, pid)
-            elif left_lid < dist_to_wall:   # too close to opposite wall
-                setSpeedIPS(v, pid)
-        else:
-            setSpeedIPS(v, v)
-
-def wallFollow():
-    fpid = frontLidar()
-    wall = 'right'
-    if fpid < 2.5:  # to close to wall, rotate 45 deg away from it
-        rotationInPlace('left', pi/4, 0.9)
-    else:   # else follow wall
-        wallFollowLidar(wall, frontLidar(), 1)
-############## wall-follow ############
-
-
-while robot.step(timestep) != -1:
-    landmarks = findLandmarks()
-    # for lan in landmarks:
-    #     print(lan.color)
-
-    if len(landmarks) >= 3:
-        x, y = triliteration(landmarks[0], landmarks[1], landmarks[2])
-        print(x, y)
+    if y > pose.y:
+        straightMotionD(y_diff, 2)
     else:
-        print("not enough landmarks")
-    # traverse()
-    wallFollow()
+        straightMotionD(-y_diff, 2)
+
+    if x > pose.x:
+        rotationInPlace('right', pi/2, 0.6)
+        straightMotionD(x_diff, 2)
+        rotationInPlace('left', pi/2, 0.6)
+    else:
+        rotationInPlace('left', pi/2, 0.6)
+        straightMotionD(x_diff, 2)
+        rotationInPlace('right', pi/2, 0.6)
+    
+
+############## triliteration to traversal ############
+def main():
+    global ROBOT_POSE, grid
+    flag = True
+    while robot.step(timestep) != -1:
+        if flag:
+            landmarks = findLandmarks()
+            for l in landmarks:
+                print(l.color, end=" ")
+                print(l.r)
+
+            if len(landmarks) >= 3:
+                x, y = triliteration(landmarks[0], landmarks[1], landmarks[2])
+                ROBOT_POSE.x = x
+                ROBOT_POSE.y = y
+                print(f'{len(landmarks)} landmarks found calculating x & y with triliteration')
+                print(f'x: {x:.2f}\ty: {y:.2f}')
+                setSpeedIPS(0, 0)
+                flag = False
+
+                cur_tile = findCurTile(ROBOT_POSE)
+                ROBOT_POSE.tile = cur_tile
+                rotateUntil90()
+                
+                print("Current tile: " + str(cur_tile))
+                center_of_tile = [tiles_coordinates[cur_tile-1][0][0]+5, tiles_coordinates[cur_tile-1][0][1]-5]
+
+                print(cur_tile)
+                print(center_of_tile)
+                moveToCenter(center_of_tile[0], center_of_tile[1], ROBOT_POSE)
+
+                ROBOT_POSE.theta = imuCleaner(imu.getRollPitchYaw()[2])
+                # create a new grid, update the current tile
+                grid = generateGrid(4)
+                updateGrid(ROBOT_POSE.tile-1)
+            else:
+                print("Not enough landmakrs for triliteration")
+                print("  ")
+                wallFollow()
+        else:
+            traverse()
+
+if __name__ == "__main__":
+    main()
