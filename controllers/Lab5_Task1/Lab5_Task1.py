@@ -134,24 +134,31 @@ def imuCleaner(imu_reading):
         rad_out = rad_out + 2*math.pi
     return math.degrees(rad_out)
 
-# code that generates the 3 points for all tiles, 16 tiles
-def generateTiles():
+# code that generates the 4 points for all tiles, 16 tiles
+# generates top left, top right, bottom left, bottom right points of an nxn grid
+def generateTiles(n):
     y = 20
     tiles = []
-    for i in range(4):
+    for i in range(n):
         x = -20
-        for j in range(4):
+        for j in range(n):
             tiles.append([[x, y], [x+10, y], [x, y-10], [x+10, y-10]])
             x+=10
         y-=10
     return tiles
 ################# END  #################
 
-# 0 = undiscovered, 1 = discovered
-grid = [[0, 0, 0, 0],
-       [0, 0, 0, 0], 
-       [0, 0, 0, 0], 
-       [0, 0, 0, 0]]
+# generates an nxn grid of 0s
+def generateGrid(n):
+    ret = []
+    for i in range(n):
+        temp = [] 
+        for j in range(n):
+            temp.append(0)
+        ret.append(temp)
+    return ret
+
+grid = generateGrid(4)
 
 ################# Updating-Pose Code #################
 # change 
@@ -171,9 +178,38 @@ class RobotPose:
     self.tile = tile
     self.theta = theta 
 
+robot_grid = generateGrid(4)
+def updateRobotGrid(tile):
+    global robot_grid
+    i = tile//4
+    j = tile%4
+    grid[i][j] = 1
+
+# bottom left, top right, robot
+def findCurTile(pose):
+    global tiles_coordinates
+    # up, down, left, right instead looking though all the tiles
+    # the search space is extremly small, this will not affect performance
+    for i in range(len(tiles_coordinates)):
+        tl = tiles_coordinates[i][0]
+        br = tiles_coordinates[i][3]
+        x, y = pose.x, pose.y
+
+        if x > tl[0] and x < br[0]:
+            if y < tl[1] and y > br[1]:
+                return i+1
+    return -1
+
 #print the grid & robot pose
 def printRobotPose(obj):
     global grid
+    cur_tile = findCurTile(obj)-1
+    i = cur_tile//4
+    j = cur_tile%4
+    if robot_grid[i][j] == 1:
+        return
+    else:
+        robot_grid[i][j] = 1
     print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
     for list in grid:
         print("\t" + str(list))
@@ -198,7 +234,7 @@ def updateTile(pose):
                 return i+1
     return -1
 
-# Update pose and grid
+# Update pose of robot and grid, updates if a tile is found
 def updatePose(obj):
     global prev_l, prev_r
     cur_l, cur_r = getPositionSensors()
@@ -277,6 +313,9 @@ def rotationInPlace(direction, angle, v):
 ################ motion functions #####################
 
 ############## traversal logic ############
+# return True if there is no wall in any of the 4 directions (90, 180, 0, 270)
+# False if there is a wall
+# basically returns the valid edges in a graph
 def checkWalls(theta):
     # front, left, right, back
     lidar = getLidar()
@@ -346,6 +385,7 @@ def neighTiles(tile, theta=90):
     return valid_neigh
 
 stack = []
+# helper, used to append for backtraking
 def traversalStrightHelper():
     global stack
     straightMotionD(10)
@@ -356,7 +396,7 @@ def traversalRotationtHelper():
     rotationInPlace('left', pi/2, 0.6)
     stack.append(0)
 
-
+# find in which direction to rotate once a valid neighbor is found
 def traversalRotationtHelper(theta, neighbors):
 
     if theta < 94 and theta > 86:
@@ -412,6 +452,8 @@ def traversalRotationtHelper(theta, neighbors):
             stack.append(0)
             stack.append(0)
 
+# DFS traversal, uses a global stack to keep backtrack
+# the neighbors are found locally, and are not stored in a DS
 def traverse():
     global grid, stack, ROBOT_POSE
     flag = False

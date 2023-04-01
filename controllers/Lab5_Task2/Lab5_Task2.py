@@ -83,7 +83,6 @@ rightposition_sensor.enable(timestep)
 imu = robot.getDevice('inertial unit')
 imu.enable(timestep)
 
-
 # global variables
 distBtwWhe = 2.28
 dmid = distBtwWhe/2
@@ -93,6 +92,7 @@ pi = math.pi
 half_of_robot = 0.037*39.3701 
 toIn = 39.3701
 
+# landmark class, used to acces x and y for triliteration
 class Landmark:
   def __init__(self, color, x, y, r):
     self.color = color
@@ -204,7 +204,8 @@ def imuCleaner(imu_reading):
         rad_out = rad_out + 2*math.pi
     return math.degrees(rad_out)
 
-# code that generates the 3 points for all tiles, 16 tiles
+# code that generates the 4 points for all tiles, 16 tiles
+# generates top left, top right, bottom left, bottom right points of an nxn grid
 def generateTiles(n):
     y = 20
     tiles = []
@@ -215,7 +216,9 @@ def generateTiles(n):
             x+=10
         y-=10
     return tiles
+
 ################# HELPER FUNCTIONS #################
+# generates an nxn grid of 0s
 def generateGrid(n):
     ret = []
     for i in range(n):
@@ -228,8 +231,7 @@ def generateGrid(n):
 # 0 = undiscovered, 1 = discovered
 grid = generateGrid(4)
 ################ robot class & functions #####################
-
-# landmark objects
+# triliteration equation
 def triliteration(l1, l2, l3):
     A = (-2*l1.x + 2*l2.x)
     B = (-2*l1.y + 2*l2.y)
@@ -248,6 +250,7 @@ def triliteration(l1, l2, l3):
 # red = 372, 369
 # blue = 393
 # green = 386
+# logic to identify the objects, weird idk bug^
 def updateLmR(id, new_r):
     # global lnm1, lnm2, lnm3, lnm4
     new_r+=half_of_robot
@@ -264,19 +267,19 @@ def updateLmR(id, new_r):
         lnm4.r = new_r 
         return lnm4
 
+# use the 4 cameras of the robot and try to find 3 or more landmarks
+# Use the camera to identify the landmark and the distance
+# only return 3 or 4 landmarks, return an emtpy list if < 3
 def findLandmarks():
     fc_objects = camera_front.getRecognitionObjects()
     lc_objects = camera_left.getRecognitionObjects()
     rc_objects = camera_right.getRecognitionObjects()
     bc_objects = camera_rear.getRecognitionObjects()
-
     # debug, fkn bulshit
     # print(fc_objects[0].getId())
     # print(lc_objects[0].getId())
     # print(rc_objects[0].getId())
     # print(bc_objects[0].getId())
-
-
     myset = []
     landmarks = []
     lower = 25  # image range
@@ -312,7 +315,7 @@ def findLandmarks():
     else:
         return []
 
-
+# robot class
 class RobotPose:
   def __init__(self, x, y, tile, theta):
     self.x = x
@@ -320,7 +323,6 @@ class RobotPose:
     self.tile = tile
     self.theta = theta 
 
-# change 
 def updateGrid(tile):
     global grid
     i = tile//4
@@ -328,17 +330,6 @@ def updateGrid(tile):
     grid[i][j] = 1
 
 tiles_coordinates = generateTiles(4)
-
-#print the grid & robot pose
-def printRobotPose(obj):
-    global grid
-    print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
-    for list in grid:
-        print("\t" + str(list))
-    print("-----------------------------------------------")
-
-ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
-prev_l, prev_r = getPositionSensors()
 
 # bottom left, top right, robot
 def findCurTile(pose):
@@ -355,7 +346,7 @@ def findCurTile(pose):
                 return i+1
     return -1
 
-# Update pose and grid
+# Update pose of robot and grid, updates if a tile is found
 def updatePose(obj):
     global prev_l, prev_r
     cur_l, cur_r = getPositionSensors()
@@ -381,9 +372,34 @@ def updatePose(obj):
     if tile != -1: 
         obj.tile = tile # updating the cur tile
         updateGrid(tile-1)
+
+# logic for printing only when the robot discovers a new tile
+robot_grid = generateGrid(4)
+def updateRobotGrid(tile):
+    global robot_grid
+    i = tile//4
+    j = tile%4
+    grid[i][j] = 1
+
+# print the grid & robot pose
+def printRobotPose(obj):
+    global grid
+    cur_tile = findCurTile(obj)-1
+    i = cur_tile//4
+    j = cur_tile%4
+    if robot_grid[i][j] == 1:
+        return
+    else:
+        robot_grid[i][j] = 1
+    print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
+    for list in grid:
+        print("\t" + str(list))
+    print("-----------------------------------------------")
+
+ROBOT_POSE = RobotPose(15.0, -15.0, 16, 90)
+prev_l, prev_r = getPositionSensors()
+
 ################ robot class & functions #####################
-
-
 
 ################ motion functions #####################
 # 5.024 = max speed in in per second
@@ -400,14 +416,12 @@ def straightMotionD(d, v = 5.024):
         if robot.getTime()-s_time > time:
             setSpeedIPS(0,0)
             updatePose(ROBOT_POSE)
-            # printRobotPose(ROBOT_POSE)
             break
         if is_neg:
             setSpeedIPS(-v, -v)
         else:
             setSpeedIPS(v, v)
         updatePose(ROBOT_POSE)
-        # printRobotPose(ROBOT_POSE)
 
 # assume angle is in radians
 def rotationInPlace(direction, angle, v):
@@ -421,7 +435,6 @@ def rotationInPlace(direction, angle, v):
             leftMotor.setVelocity(0)
             rightMotor.setVelocity(0)
             updatePose(ROBOT_POSE)
-            # printRobotPose(ROBOT_POSE)
             break 
         if direction == "left":
             setSpeedIPS(-v, v)
@@ -429,10 +442,12 @@ def rotationInPlace(direction, angle, v):
             setSpeedIPS(v, -v)
             
         updatePose(ROBOT_POSE)
-        # printRobotPose(ROBOT_POSE)
 ################ motion functions #####################
 
 ############## traversal logic ############
+# return True if there is no wall in any of the 4 directions (90, 180, 0, 270)
+# False if there is a wall
+# basically returns the valid edges in a graph
 def checkWalls(theta):
     # front, left, right, back
     lidar = getLidar()
@@ -456,10 +471,9 @@ def checkWalls(theta):
 # check if there are walls
 def neighTiles(tile, theta=90):
     valid_neigh = []
-    n = 4 # could use as an input, not for this lab
+    n = 4 # could use as an input, not needed for this lab
     i = tile//n
     j = tile%n
-
     #up
     if i == 0: valid_neigh.append(False)
     else:
@@ -488,33 +502,28 @@ def neighTiles(tile, theta=90):
             valid_neigh.append(True)
         else:
             valid_neigh.append(False)
-    
-    # print(valid_neigh)
+    # print(valid_neigh) #debug
     valid_walls = checkWalls(theta)
     for i in range(len(valid_walls)):
         if valid_walls[i] == False:
             valid_neigh[i] = False
-        
-    # print(valid_walls)
+    # print(valid_walls)    # debug
     # print(valid_neigh)
     # print("-------------------------")
-
     return valid_neigh
 
+# 1 == 10 inches backwards
+# 0 == 90deg right turn
+# -1 == 90deg left turn
 stack = []
+# helper, used to append for backtraking
 def traversalStrightHelper():
     global stack
     straightMotionD(10)
     stack.append(1)
-    
-def traversalRotationtHelper():
-    global stack
-    rotationInPlace('left', pi/2, 0.6)
-    stack.append(0)
 
-
+# find in which direction to rotate once a valid neighbor is found
 def traversalRotationtHelper(theta, neighbors):
-
     if theta < 94 and theta > 86:
         if neighbors[1]:
             rotationInPlace('left', pi/2, 0.6)
@@ -568,6 +577,8 @@ def traversalRotationtHelper(theta, neighbors):
             stack.append(0)
             stack.append(0)
 
+# DFS traversal, uses a global stack to keep backtrack
+# the neighbors are found locally, and are not stored in a DS
 def traverse():
     global grid, stack, ROBOT_POSE
     printRobotPose(ROBOT_POSE)
@@ -627,6 +638,7 @@ def findCurAngle(theta):
     elif theta < 274 and theta > 266:
         return 270
 
+# rotate the robot until a desired angle
 def rotateUntilAngle(angle):
     while robot.step(timestep) != -1:
         setSpeedIPS(0.8, -0.8)
@@ -644,8 +656,9 @@ def rotateUntilAngle(angle):
                 setSpeedIPS(0, 0)
                 break
 
+# used to move to the center of a tile, but can be used to set the robot to any (x,y)
+# assuming the robot is facing north, 90 deg
 def moveToCenter(x, y, pose):
-
     x_diff = abs(x - pose.x)
     y_diff = abs(y - pose.y)
 
@@ -663,14 +676,14 @@ def moveToCenter(x, y, pose):
         straightMotionD(x_diff, 2)
         rotationInPlace('right', pi/2, 0.6)
 
-
+# return true if trilateration was succesful, otherwise false
 def triliterationHelper(isFirst, angle):
     global ROBOT_POSE, grid
     landmarks = findLandmarks()
-    for l in landmarks:
-        print(l.color, end=" ")
-        print(l.r)
-
+    # for l in landmarks:   #debug
+    #     print(l.color, end=" ")
+    #     print(l.r)
+    # only triangulate if 3 landmarks were found
     if len(landmarks) >= 3:
         if isFirst == False:
             print(f'Improving accuracy with triliteration, recalculating x, y...')
@@ -686,11 +699,11 @@ def triliterationHelper(isFirst, angle):
         ROBOT_POSE.tile = cur_tile
         rotateUntilAngle(angle)
         
-        print("Current tile: " + str(cur_tile))
+        # print("Current tile: " + str(cur_tile))# debug
         center_of_tile = [tiles_coordinates[cur_tile-1][0][0]+5, tiles_coordinates[cur_tile-1][0][1]-5]
 
-        print(cur_tile)
-        print(center_of_tile)
+        # print(cur_tile)   # debug
+        # print(center_of_tile) # debug
         moveToCenter(center_of_tile[0], center_of_tile[1], ROBOT_POSE)
 
         if isFirst:
@@ -700,10 +713,9 @@ def triliterationHelper(isFirst, angle):
             updateGrid(ROBOT_POSE.tile-1)
         return True
     else:
-        return False
-    
-
+        return False 
 ############## triliteration to traversal ############
+
 def main():
     global ROBOT_POSE, grid
     flag = True
@@ -719,6 +731,7 @@ def main():
                 wallFollow()
         else:
             traverse()
+            # try to triangulate the position again for increased accuracy
             if triliteration_count < 4:
                 cur_theta = findCurAngle(ROBOT_POSE.theta)
                 tri = triliterationHelper(False, cur_theta)
