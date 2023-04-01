@@ -168,7 +168,7 @@ def updateGrid(tile):
     j = tile%4
     grid[i][j] = 1
 
-tiles_coordinates = generateTiles()
+tiles_coordinates = generateTiles(4)
 
 ################ robot class & functions #####################
 class RobotPose:
