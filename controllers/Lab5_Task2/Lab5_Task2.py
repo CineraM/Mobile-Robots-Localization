@@ -92,7 +92,7 @@ pi = math.pi
 half_of_robot = 0.037*39.3701 
 toIn = 39.3701
 
-# landmark class, used to acces x and y for triliteration
+# landmark class, used to acces x and y for trilateration
 class Landmark:
   def __init__(self, color, x, y, r):
     self.color = color
@@ -231,8 +231,8 @@ def generateGrid(n):
 # 0 = undiscovered, 1 = discovered
 grid = generateGrid(4)
 ################ robot class & functions #####################
-# triliteration equation
-def triliteration(l1, l2, l3):
+# trilateration equation
+def trilateration(l1, l2, l3):
     A = (-2*l1.x + 2*l2.x)
     B = (-2*l1.y + 2*l2.y)
     C = pow(l1.r, 2) - pow(l2.r, 2) - pow(l1.x, 2) + pow(l2.x, 2) - pow(l1.y, 2) + pow(l2.y, 2)
@@ -266,6 +266,23 @@ def updateLmR(id, new_r):
     elif id == 386 or id ==383:
         lnm4.r = new_r 
         return lnm4
+    
+def landmarkHelper(ids):
+    # possible permutations of 3
+    perm1 = [1, 2, 3]
+    perm2 = [2, 3, 4]
+    perm3 = [1, 3, 4]
+
+    if len(ids) == 4:
+        return [lnm1, lnm2, lnm3, lnm4]
+    else:
+        if perm1 == ids:
+            return [lnm1, lnm2, lnm3]
+        elif perm2 == ids:
+            return [lnm2, lnm3, lnm4]
+        elif perm3 == ids:
+            return [lnm1, lnm4, lnm3] 
+        
 
 # use the 4 cameras of the robot and try to find 3 or more landmarks
 # Use the camera to identify the landmark and the distance
@@ -289,28 +306,31 @@ def findLandmarks():
         if pos_image >= lower and pos_image <= upper:
             if fc_objects[0].getId() not in myset:
                 myset.append(fc_objects[0].getId())
-                landmarks.append(updateLmR(fc_objects[0].getId(), fc_objects[0].getPosition()[0] * 39.3701))
+                landmarks.append(updateLmR(fc_objects[0].getId(), fc_objects[0].getPosition()[0] * 39.3701).color)
     if len(lc_objects) > 0:
         pos_image = lc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if lc_objects[0].getId() not in myset:
                 myset.append(lc_objects[0].getId())
-                landmarks.append(updateLmR(lc_objects[0].getId(), lc_objects[0].getPosition()[0] * 39.3701))
+                landmarks.append(updateLmR(lc_objects[0].getId(), lc_objects[0].getPosition()[0] * 39.3701).color)
     if len(rc_objects) > 0:
         pos_image = rc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if rc_objects[0].getId() not in myset:
                 myset.append(rc_objects[0].getId())
-                landmarks.append(updateLmR(rc_objects[0].getId(), rc_objects[0].getPosition()[0] * 39.3701))
+                landmarks.append(updateLmR(rc_objects[0].getId(), rc_objects[0].getPosition()[0] * 39.3701).color)
     if len(bc_objects) > 0:
         pos_image = bc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if bc_objects[0].getId() not in myset:
                 myset.append(bc_objects[0].getId())
-                landmarks.append(updateLmR(bc_objects[0].getId(), bc_objects[0].getPosition()[0] * 39.3701))
+                landmarks.append(updateLmR(bc_objects[0].getId(), bc_objects[0].getPosition()[0] * 39.3701).color)
     
     if len(landmarks) >= 3:
-        landmarks = sorted(landmarks,key=lambda x: (x.color)) # sort based on first index, always maintain the same order
+        # landmarks = sorted(landmarks,key=lambda x: (x.color)) # sort based on first index, always maintain the same order
+        landmarks.sort()
+        # print(landmarks) # debug
+        landmarks = landmarkHelper(landmarks)
         return landmarks
     else:
         return []
@@ -598,7 +618,7 @@ def traverse():
     # BACK TRACK
     if True not in n_tiles: 
         top = stack.pop()
-        if top == 1:
+        if top == 1: 
             straightMotionD(-10)
         elif top == 0:
             rotationInPlace('right', pi/2, 0.6)
@@ -627,7 +647,7 @@ def traverse():
             traversalRotationtHelper(theta, n_tiles)
 ############## traversal logic ############
 
-############## triliteration to traversal ############
+############## trilateration to traversal ############
 def findCurAngle(theta):
     if theta < 94 and theta > 86:
         return 90
@@ -677,7 +697,7 @@ def moveToCenter(x, y, pose):
         rotationInPlace('right', pi/2, 0.6)
 
 # return true if trilateration was succesful, otherwise false
-def triliterationHelper(isFirst, angle):
+def trilaterationHelper(isFirst, angle):
     global ROBOT_POSE, grid
     landmarks = findLandmarks()
     # for l in landmarks:   #debug
@@ -686,12 +706,12 @@ def triliterationHelper(isFirst, angle):
     # only triangulate if 3 landmarks were found
     if len(landmarks) >= 3:
         if isFirst == False:
-            print(f'Improving accuracy with triliteration, recalculating x, y...')
+            print(f'Improving accuracy with trilateration, recalculating x, y...')
 
-        x, y = triliteration(landmarks[0], landmarks[1], landmarks[2])
+        x, y = trilateration(landmarks[0], landmarks[1], landmarks[2])
         ROBOT_POSE.x = x
         ROBOT_POSE.y = y
-        print(f'{len(landmarks)} landmarks found calculating x & y with triliteration')
+        print(f'{len(landmarks)} landmarks found calculating x & y with trilateration')
         print(f'x: {x:.2f}\ty: {y:.2f}')
         setSpeedIPS(0, 0)
 
@@ -714,31 +734,33 @@ def triliterationHelper(isFirst, angle):
         return True
     else:
         return False 
-############## triliteration to traversal ############
+############## trilateration to traversal ############
 
 def main():
     global ROBOT_POSE, grid
     flag = True
-    triliteration_count = 0
+    trilateration_count = 1
     while robot.step(timestep) != -1:
         if flag:
-            tri = triliterationHelper(True, 90)
+            tri = trilaterationHelper(True, 90)
             if tri:
                 flag = False
             else:
-                print("Not enough landmakrs for triliteration")
+                print("Not enough landmakrs for trilateration")
                 print("  ")
                 wallFollow()
         else:
             traverse()
             # try to triangulate the position again for increased accuracy
-            if triliteration_count < 4:
+            # print(trilateration_count)
+            if trilateration_count < 4:
                 cur_theta = findCurAngle(ROBOT_POSE.theta)
-                tri = triliterationHelper(False, cur_theta)
+                tri = trilaterationHelper(False, cur_theta)
                 if tri: 
-                    triliteration_count+=1
+                    trilateration_count+=1
                 else:
                     print("Not enough landmakrs to recalculate x & y")
+                    print()
 
 if __name__ == "__main__":
     main()
