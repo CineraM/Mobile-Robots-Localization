@@ -83,6 +83,7 @@ rightposition_sensor.enable(timestep)
 imu = robot.getDevice('inertial unit')
 imu.enable(timestep)
 
+
 # global variables
 distBtwWhe = 2.28
 dmid = distBtwWhe/2
@@ -91,6 +92,18 @@ w_r = w_dia/2
 pi = math.pi
 half_of_robot = 0.037*39.3701 
 toIn = 39.3701
+
+class Landmark:
+  def __init__(self, color, x, y, r):
+    self.color = color
+    self.x = x 
+    self.y = y
+    self.r = r
+# 1=yellow, 2=red, 3=blue, 4=green
+lnm1 = Landmark(1, -20, 20, -1)
+lnm2 = Landmark(2, 20, 20, -1)
+lnm3 = Landmark(3, 20, -20, -1)
+lnm4 = Landmark(4, -20, -20, -1)
 
 ############## wall-follow ############
 def vSaturation(v, max):
@@ -130,7 +143,7 @@ def wallFollowLidar(wall, flid, k):
     right_lid = lids[1]
     dist_to_wall = 1.5
     v = vSaturation(flid, 4)
-    error = (v - 3)  # target distance to wall = 2.5 inches
+    error = (v - 2.5)  # target distance to wall = 2.5 inches
     pid = v-abs(error)*k
     if wall == 'right':    
         if flid > 3:
@@ -216,17 +229,6 @@ def generateGrid(n):
 # 0 = undiscovered, 1 = discovered
 grid = generateGrid(4)
 ################ robot class & functions #####################
-class Landmark:
-  def __init__(self, color, x, y, r):
-    self.color = color
-    self.x = x 
-    self.y = y
-    self.r = r
-# 1=yellow, 2=red, 3=blue, 4=green
-lnm1 = Landmark(1, -20, 20, -1)
-lnm2 = Landmark(2, 20, 20, -1)
-lnm3 = Landmark(3, 20, -20, -1)
-lnm4 = Landmark(4, -20, -20, -1)
 
 # landmark objects
 def triliteration(l1, l2, l3):
@@ -247,7 +249,7 @@ def triliteration(l1, l2, l3):
 # blue = 393
 # green = 386
 def updateLmR(id, new_r):
-    global lnm1, lnm2, lnm3, lnm4
+    # global lnm1, lnm2, lnm3, lnm4
     new_r+=half_of_robot
     if id == 379:
         lnm1.r = new_r
@@ -608,13 +610,32 @@ def traverse():
 ############## traversal logic ############
 
 ############## triliteration to traversal ############
-def rotateUntil90():
+def findCurAngle(theta):
+    if theta < 94 and theta > 86:
+        return 90
+    elif theta < 184 and theta > 176:
+        return 180
+    elif theta <= 360 and theta > 356 or theta < 4 and theta >= 0:
+        return 0
+    elif theta < 274 and theta > 266:
+        return 270
+
+def rotateUntilAngle(angle):
     while robot.step(timestep) != -1:
-        setSpeedIPS(0.3, -0.3)
+        setSpeedIPS(0.8, -0.8)
         theta = imuCleaner(imu.getRollPitchYaw()[2])
-        if theta <= 90.3 and theta >= 89.7:
-            setSpeedIPS(0, 0)
-            break
+
+        if angle == 0:
+            if theta <= 0.3:
+                setSpeedIPS(0, 0)
+                break
+            elif theta >= 359.7 and theta <=360:
+                setSpeedIPS(0, 0)
+                break
+        else:
+            if theta <= angle+0.3 and theta >= angle-0.3:
+                setSpeedIPS(0, 0)
+                break
 
 def moveToCenter(x, y, pose):
 
@@ -634,49 +655,70 @@ def moveToCenter(x, y, pose):
         rotationInPlace('left', pi/2, 0.6)
         straightMotionD(x_diff, 2)
         rotationInPlace('right', pi/2, 0.6)
+
+
+def triliterationHelper(isFirst, angle):
+    global ROBOT_POSE, grid
+    landmarks = findLandmarks()
+    for l in landmarks:
+        print(l.color, end=" ")
+        print(l.r)
+
+    if len(landmarks) >= 3:
+        if isFirst == False:
+            print(f'Improving accuracy with triliteration, recalculating x, y...')
+
+        x, y = triliteration(landmarks[0], landmarks[1], landmarks[2])
+        ROBOT_POSE.x = x
+        ROBOT_POSE.y = y
+        print(f'{len(landmarks)} landmarks found calculating x & y with triliteration')
+        print(f'x: {x:.2f}\ty: {y:.2f}')
+        setSpeedIPS(0, 0)
+
+        cur_tile = findCurTile(ROBOT_POSE)
+        ROBOT_POSE.tile = cur_tile
+        rotateUntilAngle(angle)
+        
+        print("Current tile: " + str(cur_tile))
+        center_of_tile = [tiles_coordinates[cur_tile-1][0][0]+5, tiles_coordinates[cur_tile-1][0][1]-5]
+
+        print(cur_tile)
+        print(center_of_tile)
+        moveToCenter(center_of_tile[0], center_of_tile[1], ROBOT_POSE)
+
+        if isFirst:
+            ROBOT_POSE.theta = imuCleaner(imu.getRollPitchYaw()[2])
+            # create a new grid, update the current tile
+            grid = generateGrid(4)
+            updateGrid(ROBOT_POSE.tile-1)
+        return True
+    else:
+        return False
     
 
 ############## triliteration to traversal ############
 def main():
     global ROBOT_POSE, grid
     flag = True
+    triliteration_count = 0
     while robot.step(timestep) != -1:
         if flag:
-            landmarks = findLandmarks()
-            for l in landmarks:
-                print(l.color, end=" ")
-                print(l.r)
-
-            if len(landmarks) >= 3:
-                x, y = triliteration(landmarks[0], landmarks[1], landmarks[2])
-                ROBOT_POSE.x = x
-                ROBOT_POSE.y = y
-                print(f'{len(landmarks)} landmarks found calculating x & y with triliteration')
-                print(f'x: {x:.2f}\ty: {y:.2f}')
-                setSpeedIPS(0, 0)
+            tri = triliterationHelper(True, 90)
+            if tri:
                 flag = False
-
-                cur_tile = findCurTile(ROBOT_POSE)
-                ROBOT_POSE.tile = cur_tile
-                rotateUntil90()
-                
-                print("Current tile: " + str(cur_tile))
-                center_of_tile = [tiles_coordinates[cur_tile-1][0][0]+5, tiles_coordinates[cur_tile-1][0][1]-5]
-
-                print(cur_tile)
-                print(center_of_tile)
-                moveToCenter(center_of_tile[0], center_of_tile[1], ROBOT_POSE)
-
-                ROBOT_POSE.theta = imuCleaner(imu.getRollPitchYaw()[2])
-                # create a new grid, update the current tile
-                grid = generateGrid(4)
-                updateGrid(ROBOT_POSE.tile-1)
             else:
                 print("Not enough landmakrs for triliteration")
                 print("  ")
                 wallFollow()
         else:
             traverse()
+            if triliteration_count < 4:
+                cur_theta = findCurAngle(ROBOT_POSE.theta)
+                tri = triliterationHelper(False, cur_theta)
+                if tri: 
+                    triliteration_count+=1
+                else:
+                    print("Not enough landmakrs to recalculate x & y")
 
 if __name__ == "__main__":
     main()
