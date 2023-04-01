@@ -122,7 +122,6 @@ def frontLidar():
 def getLidarMin():
     image = lidar.getRangeImage()
     toIn = 39.3701
-
     min_left = 999
     min_right = 999
 
@@ -244,23 +243,24 @@ def triliteration(l1, l2, l3):
     y = (C*D-A*F)/(B*D-A*E)
     return x, y
 
+# ids can change, the program crashes, check the id of the object
 # yellow = 379
-# red = 372
+# red = 372, 369
 # blue = 393
 # green = 386
 def updateLmR(id, new_r):
     # global lnm1, lnm2, lnm3, lnm4
     new_r+=half_of_robot
-    if id == 379:
+    if id == 379 or id == 376:
         lnm1.r = new_r
         return lnm1
-    elif id == 372:
+    elif id == 372 or id == 369:
         lnm2.r = new_r
         return lnm2
-    elif id == 393:
+    elif id == 393 or id == 390:
         lnm3.r = new_r
         return lnm3
-    elif id == 386:
+    elif id == 386 or id ==383:
         lnm4.r = new_r 
         return lnm4
 
@@ -269,6 +269,13 @@ def findLandmarks():
     lc_objects = camera_left.getRecognitionObjects()
     rc_objects = camera_right.getRecognitionObjects()
     bc_objects = camera_rear.getRecognitionObjects()
+
+    # debug, fkn bulshit
+    # print(fc_objects[0].getId())
+    # print(lc_objects[0].getId())
+    # print(rc_objects[0].getId())
+    # print(bc_objects[0].getId())
+
 
     myset = []
     landmarks = []
@@ -570,8 +577,8 @@ def traverse():
             flag = True
             break
     if flag == False: # victory spin :) 
-        setSpeedIPS(-2, 2)
-        return
+        while robot.step(timestep) != -1:
+            setSpeedIPS(-2, 2)
 
     n_tiles = neighTiles(ROBOT_POSE.tile-1, ROBOT_POSE.theta)
     theta = ROBOT_POSE.theta
