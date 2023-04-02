@@ -501,5 +501,25 @@ def traverse():
             traversalRotationtHelper(theta, n_tiles)
 ############## traversal logic ############
 
+
+def rotateUntilAngle(angle):
+    while robot.step(timestep) != -1:
+        setSpeedIPS(0.8, -0.8)
+        theta = imuCleaner(imu.getRollPitchYaw()[2])
+
+        if angle == 0:
+            if theta <= 0.3:
+                setSpeedIPS(0, 0)
+                break
+            elif theta >= 359.7 and theta <=360:
+                setSpeedIPS(0, 0)
+                break
+        else:
+            if theta <= angle+0.3 and theta >= angle-0.3:
+                setSpeedIPS(0, 0)
+                break
+
+print("Rotating until 90 degrees...")
+rotateUntilAngle(90)
 while robot.step(timestep) != -1:
     traverse()
