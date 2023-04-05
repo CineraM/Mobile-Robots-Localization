@@ -5,7 +5,7 @@ sceneTreePerspectives: 000000ff000000010000000300000022000004d6000000fa010000000
 maximizedDockId: -1
 centralWidgetVisible: 1
 orthographicViewHeight: 1
-textFiles: 0 "controllers/Lab5_Task2/Lab5_Task2.py"
+textFiles: 0 "../../Documents/GitHub/Mobile-Robots-Localization/controllers/Lab5_Task2/Lab5_Task2.py"
 consoles: Console:All:All
 renderingDevicePerspectives: e-puck:camera;1;1;0;0
 renderingDevicePerspectives: e-puck:cameraFront;1;1;0;0

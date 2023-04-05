@@ -251,19 +251,25 @@ def trilateration(l1, l2, l3):
 # blue = 393
 # green = 386
 # logic to identify the objects, weird idk bug^
-def updateLmR(id, new_r):
+
+YELLOW = [1.0, 1.0, 0.0]
+RED    = [1.0, 0.0, 0.0]
+BLUE   = [0.0, 0.0, 1.0]
+GREEN  = [0.0, 1.0, 0.0]
+def updateLmR(color, new_r):
     # global lnm1, lnm2, lnm3, lnm4
     new_r+=half_of_robot
-    if id == 379 or id == 376:
+    input_color = [color[0], color[1], color[2]]
+    if input_color == YELLOW:
         lnm1.r = new_r
         return lnm1
-    elif id == 372 or id == 369:
+    elif input_color == RED:
         lnm2.r = new_r
         return lnm2
-    elif id == 393 or id == 390:
+    elif input_color == BLUE:
         lnm3.r = new_r
         return lnm3
-    elif id == 386 or id ==383:
+    elif input_color == GREEN:
         lnm4.r = new_r 
         return lnm4
     
@@ -292,11 +298,10 @@ def findLandmarks():
     lc_objects = camera_left.getRecognitionObjects()
     rc_objects = camera_right.getRecognitionObjects()
     bc_objects = camera_rear.getRecognitionObjects()
-    # debug, fkn bulshit
+    # debug
     # print(fc_objects[0].getId())
-    # print(lc_objects[0].getId())
-    # print(rc_objects[0].getId())
-    # print(bc_objects[0].getId())
+    # print(fc_objects[0].getColors()[0])
+    # print(fc_objects[0].getColors()[0], fc_objects[0].getColors()[1], fc_objects[0].getColors()[2])
     myset = []
     landmarks = []
     lower = 25  # image range
@@ -306,25 +311,25 @@ def findLandmarks():
         if pos_image >= lower and pos_image <= upper:
             if fc_objects[0].getId() not in myset:
                 myset.append(fc_objects[0].getId())
-                landmarks.append(updateLmR(fc_objects[0].getId(), fc_objects[0].getPosition()[0] * 39.3701).color)
+                landmarks.append(updateLmR(fc_objects[0].getColors(), fc_objects[0].getPosition()[0] * 39.3701).color)
     if len(lc_objects) > 0:
         pos_image = lc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if lc_objects[0].getId() not in myset:
                 myset.append(lc_objects[0].getId())
-                landmarks.append(updateLmR(lc_objects[0].getId(), lc_objects[0].getPosition()[0] * 39.3701).color)
+                landmarks.append(updateLmR(lc_objects[0].getColors(), lc_objects[0].getPosition()[0] * 39.3701).color)
     if len(rc_objects) > 0:
         pos_image = rc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if rc_objects[0].getId() not in myset:
                 myset.append(rc_objects[0].getId())
-                landmarks.append(updateLmR(rc_objects[0].getId(), rc_objects[0].getPosition()[0] * 39.3701).color)
+                landmarks.append(updateLmR(rc_objects[0].getColors(), rc_objects[0].getPosition()[0] * 39.3701).color)
     if len(bc_objects) > 0:
         pos_image = bc_objects[0].getPositionOnImage()[0]
         if pos_image >= lower and pos_image <= upper:
             if bc_objects[0].getId() not in myset:
                 myset.append(bc_objects[0].getId())
-                landmarks.append(updateLmR(bc_objects[0].getId(), bc_objects[0].getPosition()[0] * 39.3701).color)
+                landmarks.append(updateLmR(bc_objects[0].getColors(), bc_objects[0].getPosition()[0] * 39.3701).color)
     
     if len(landmarks) >= 3:
         # landmarks = sorted(landmarks,key=lambda x: (x.color)) # sort based on first index, always maintain the same order
