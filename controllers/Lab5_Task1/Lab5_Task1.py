@@ -322,7 +322,7 @@ def checkWalls(theta):
     lidar = getLidar()
     no_wall = []
     for lid in lidar:
-        if lid < 4:
+        if lid < 6:
             no_wall.append(False)
         else:
             no_wall.append(True)
