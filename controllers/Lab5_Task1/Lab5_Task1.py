@@ -204,12 +204,12 @@ def findCurTile(pose):
 def printRobotPose(obj):
     global grid
     cur_tile = findCurTile(obj)-1
-    i = cur_tile//4
-    j = cur_tile%4
-    if robot_grid[i][j] == 1:
-        return
-    else:
-        robot_grid[i][j] = 1
+    # i = cur_tile//4
+    # j = cur_tile%4
+    # if robot_grid[i][j] == 1:
+    #     return
+    # else:
+    #     robot_grid[i][j] = 1
     print(f'x: {obj.x:.2f}\ty: {obj.y:.2f}\ttile: {obj.tile}\ttheta: {obj.theta:.2f}')
     for list in grid:
         print("\t" + str(list))
@@ -236,7 +236,8 @@ def updateTile(pose):
 
 # Update pose of robot and grid, updates if a tile is found
 def updatePose(obj):
-    global prev_l, prev_r
+    global prev_l, prev_r, ROBOT_POSE
+    printRobotPose(ROBOT_POSE)
     cur_l, cur_r = getPositionSensors()
     vl = (cur_l-prev_l)/0.032   # 32 ms 
     vr = (cur_r-prev_r)/0.032
